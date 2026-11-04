@@ -31,7 +31,8 @@
     "*://sv.iuh.edu.vn/*",
     "*://*.iuh.edu.vn/*",
     "http://localhost/*",
-    "http://127.0.0.1/*"
+    "http://127.0.0.1/*",
+    "file:///*"
   ],
   "content_scripts": [
     {
@@ -40,7 +41,8 @@
         "*://sv.iuh.edu.vn/*",
         "*://*.iuh.edu.vn/*",
         "http://localhost/*",
-        "http://127.0.0.1/*"
+        "http://127.0.0.1/*",
+        "file:///*"
       ],
       "js": ["content/content.js"],
       "css": ["content/content.css"],
@@ -55,7 +57,8 @@
         "*://sv.iuh.edu.vn/*",
         "*://*.iuh.edu.vn/*",
         "http://localhost/*",
-        "http://127.0.0.1/*"
+        "http://127.0.0.1/*",
+        "file:///*"
       ]
     }
   ]
