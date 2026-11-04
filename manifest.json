@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "IUH DKHP Pro - Tool Đăng Ký Học Phần IUH",
+  "version": "1.0.0",
+  "description": "Extension hỗ trợ sinh viên Đại học Công nghiệp TP.HCM (IUH) đăng ký học phần, canh săn slot lớp đầy, auto click giờ G, giữ phiên đăng nhập.",
+  "author": "IUH Student Support",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "IUH DKHP Pro"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "permissions": [
+    "storage",
+    "alarms",
+    "notifications"
+  ],
+  "host_permissions": [
+    "*://dkhp.iuh.edu.vn/*",
+    "*://sv.iuh.edu.vn/*",
+    "*://*.iuh.edu.vn/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://dkhp.iuh.edu.vn/*",
+        "*://sv.iuh.edu.vn/*",
+        "*://*.iuh.edu.vn/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["content/content.js"],
+      "css": ["content/content.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/injected.js", "icons/*.png"],
+      "matches": [
+        "*://dkhp.iuh.edu.vn/*",
+        "*://sv.iuh.edu.vn/*",
+        "*://*.iuh.edu.vn/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ]
+    }
+  ]
+}

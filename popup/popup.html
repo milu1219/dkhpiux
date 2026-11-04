@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IUH DKHP Pro</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="brand">
+        <img src="../icons/icon48.png" alt="Logo" class="logo">
+        <div>
+          <div class="title">IUH DKHP PRO</div>
+          <div class="subtitle">Trợ lý Đăng Ký Học Phần IUH</div>
+        </div>
+      </div>
+      <span class="badge-version">v1.0</span>
+    </header>
+
+    <!-- Page Status Card -->
+    <div class="card status-card" id="page-status-card">
+      <div class="status-indicator">
+        <span class="dot" id="page-status-dot"></span>
+        <span class="status-text" id="page-status-text">Đang kiểm tra kết nối...</span>
+      </div>
+      <button class="btn btn-sm btn-primary" id="btn-open-dkhp" style="display: none;">
+        🌐 Mở trang ĐKHP IUH
+      </button>
+    </div>
+
+    <!-- Quick Target Manager -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">🎯 Mã LHP cần săn (<span id="target-count">0</span>)</span>
+      </div>
+      <div class="input-row">
+        <input type="text" id="popup-input-code" class="input-text" placeholder="Nhập mã LHP (vd: 420300123401)">
+        <button class="btn btn-primary" id="popup-btn-add">+ Thêm</button>
+      </div>
+      <div class="target-list" id="popup-target-list">
+        <div class="empty-state">Chưa có mã LHP nào được lưu.</div>
+      </div>
+    </div>
+
+    <!-- Quick Settings -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">⚙️ Cài đặt nhanh</span>
+      </div>
+
+      <div class="toggle-row">
+        <span>Tự động bấm nút Đăng Ký</span>
+        <label class="switch">
+          <input type="checkbox" id="setting-auto-reg" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>Âm thanh báo hiệu</span>
+        <label class="switch">
+          <input type="checkbox" id="setting-sound" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>Tự động giữ phiên (Anti-Logout)</span>
+        <label class="switch">
+          <input type="checkbox" id="setting-keepalive" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span>Tốc độ quét</span>
+        <select id="setting-speed" class="select-box">
+          <option value="300">300ms (Cực nhanh)</option>
+          <option value="500">500ms (Nhanh)</option>
+          <option value="800" selected>800ms (Chuẩn)</option>
+          <option value="1500">1.5s (An toàn)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="popup-footer">
+      <div class="footer-tip">💡 Widget điều khiển trực tiếp sẽ tự động hiện nổi ngay trên trang web IUH!</div>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+
