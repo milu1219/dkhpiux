@@ -29,4 +29,3 @@ tool dkhp/
 4. **Giao diện HUD trực quan kéo thả:** Widget xuất hiện trực tiếp ngay trên trang web của trường, có thể di chuyển, thu nhỏ/phóng to tùy ý.
 5. **Gắn nút 1-click [+ Săn] vào bảng:** Tự động đính nút tiện lợi vào từng lớp học phần trên trang của trường.
 6. **Âm thanh & Thông báo Desktop:** Tích hợp bộ tổng hợp âm thanh Web Audio API và thông báo hệ điều hành khi đăng ký thành công.
-
