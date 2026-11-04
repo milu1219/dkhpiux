@@ -7,30 +7,40 @@ document.addEventListener('DOMContentLoaded', () => {
   const dot = document.getElementById('page-status-dot');
   const statusText = document.getElementById('page-status-text');
   const btnOpenDkhp = document.getElementById('btn-open-dkhp');
+  const btnToggleHud = document.getElementById('btn-toggle-hud');
 
   const inputCode = document.getElementById('popup-input-code');
   const btnAdd = document.getElementById('popup-btn-add');
   const targetList = document.getElementById('popup-target-list');
   const targetCount = document.getElementById('target-count');
 
+  const chkAutoOpen = document.getElementById('setting-auto-open');
   const chkAutoReg = document.getElementById('setting-auto-reg');
   const chkSound = document.getElementById('setting-sound');
   const chkKeepAlive = document.getElementById('setting-keepalive');
   const selectSpeed = document.getElementById('setting-speed');
 
-  // Kiểm tra tab hiện tại xem có phải dkhp.iuh.edu.vn không
+  // Kiểm tra tab hiện tại xem có phải trang hỗ trợ (IUH hoặc simulator) không
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const currentTab = tabs[0];
     const url = (currentTab && currentTab.url) || '';
 
-    if (url.includes('dkhp.iuh.edu.vn') || url.includes('sv.iuh.edu.vn')) {
+    const isSupported = url.includes('dkhp.iuh.edu.vn') ||
+                        url.includes('sv.iuh.edu.vn') ||
+                        url.includes('test_dkhp_simulator') ||
+                        url.includes('localhost') ||
+                        url.includes('127.0.0.1');
+
+    if (isSupported) {
       dot.className = 'dot connected';
-      statusText.innerText = 'Đã kết nối với cổng ĐKHP IUH';
+      statusText.innerText = 'Đã kết nối với trang ĐKHP';
       btnOpenDkhp.style.display = 'none';
+      btnToggleHud.style.display = 'inline-block';
     } else {
       dot.className = 'dot disconnected';
       statusText.innerText = 'Chưa mở trang ĐKHP IUH';
       btnOpenDkhp.style.display = 'inline-block';
+      btnToggleHud.style.display = 'none';
     }
   });
 
@@ -40,6 +50,17 @@ document.addEventListener('DOMContentLoaded', () => {
     window.close();
   });
 
+  // Nút bật/tắt widget trên trang
+  btnToggleHud.addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs[0] && tabs[0].id) {
+        chrome.tabs.sendMessage(tabs[0].id, { action: 'TOGGLE_HUD' }, () => {
+          window.close();
+        });
+      }
+    });
+  });
+
   // Tải cấu hình và danh sách target từ chrome.storage.local
   function loadData() {
     chrome.storage.local.get(['dkhp_settings', 'dkhp_targets'], (data) => {
@@ -47,6 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const targets = data.dkhp_targets || [];
 
       // Render settings
+      chkAutoOpen.checked = !!settings.autoOpenHUD;
+
       if (typeof settings.autoRegister !== 'undefined') {
         chkAutoReg.checked = settings.autoRegister;
       }
@@ -144,6 +167,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') addTarget();
   });
 
+  chkAutoOpen.addEventListener('change', (e) => {
+    updateSetting('autoOpenHUD', e.target.checked);
+    if (!e.target.checked) {
+      updateSetting('isMinimized', true);
+    }
+  });
+
   chkAutoReg.addEventListener('change', (e) => updateSetting('autoRegister', e.target.checked));
   chkSound.addEventListener('change', (e) => updateSetting('soundAlert', e.target.checked));
   chkKeepAlive.addEventListener('change', (e) => updateSetting('antiLogout', e.target.checked));
@@ -152,4 +182,3 @@ document.addEventListener('DOMContentLoaded', () => {
   // Khởi động
   loadData();
 });
-

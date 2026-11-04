@@ -20,7 +20,9 @@ chrome.runtime.onInstalled.addListener((details) => {
           autoSelectPractice: true,  // Tự động chọn nhóm thực hành đầu tiên còn chỗ nếu có
           notifySystem: true,        // Bắn thông báo desktop khi thành công
           hideFullClasses: false,    // Ẩn lớp đã đầy
-          highlightOpenClasses: true // Tô xanh lớp còn chỗ
+          highlightOpenClasses: true,// Tô xanh lớp còn chỗ
+          isMinimized: true,         // Mặc định luôn thu gọn
+          autoOpenHUD: false         // Tắt tự động mở to khi vào trang
         }
       });
     }
@@ -74,4 +76,3 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return true;
 });
-

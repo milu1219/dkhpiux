@@ -26,9 +26,14 @@
         <span class="dot" id="page-status-dot"></span>
         <span class="status-text" id="page-status-text">Đang kiểm tra kết nối...</span>
       </div>
-      <button class="btn btn-sm btn-primary" id="btn-open-dkhp" style="display: none;">
-        🌐 Mở trang ĐKHP IUH
-      </button>
+      <div style="display: flex; gap: 4px;">
+        <button class="btn btn-sm btn-primary" id="btn-toggle-hud" style="display: none;" title="Bật / Thu gọn bảng nổi trên trang">
+          ⚡ Bật/Tắt Bảng
+        </button>
+        <button class="btn btn-sm btn-primary" id="btn-open-dkhp" style="display: none;">
+          🌐 Mở ĐKHP
+        </button>
+      </div>
     </div>
 
     <!-- Quick Target Manager -->
@@ -48,7 +53,15 @@
     <!-- Quick Settings -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">⚙️ Cài đặt nhanh</span>
+        <span class="card-title">⚙️ Cài đặt</span>
+      </div>
+
+      <div class="toggle-row">
+        <span>Tự động bung to bảng khi vào trang</span>
+        <label class="switch">
+          <input type="checkbox" id="setting-auto-open">
+          <span class="slider"></span>
+        </label>
       </div>
 
       <div class="toggle-row">
@@ -88,11 +101,10 @@
 
     <!-- Footer -->
     <footer class="popup-footer">
-      <div class="footer-tip">💡 Widget điều khiển trực tiếp sẽ tự động hiện nổi ngay trên trang web IUH!</div>
+      <div class="footer-tip">💡 Khi đã thu gọn, Tool sẽ luôn gọn gàng trong nút nhỏ <b>⚡ IUH DKHP PRO</b> ở góc màn hình. Bấm vào nút là mở ra ngay!</div>
     </footer>
   </div>
 
   <script src="popup.js"></script>
 </body>
 </html>
-

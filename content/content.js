@@ -1,6 +1,6 @@
 /**
  * IUH DKHP Pro - Content Script
- * Chạy trực tiếp trên dkhp.iuh.edu.vn và sv.iuh.edu.vn
+ * Chạy trực tiếp trên dkhp.iuh.edu.vn, sv.iuh.edu.vn và trang giả lập simulator
  */
 
 (function () {
@@ -41,7 +41,9 @@
       notifySystem: true,
       hideFullClasses: false,
       highlightOpenClasses: true,
-      stopOnSuccess: true
+      stopOnSuccess: true,
+      isMinimized: true,         // Mặc định luôn thu gọn
+      autoOpenHUD: false         // Tắt tự động mở to khi vào trang
     },
     logs: []
   };
@@ -165,11 +167,6 @@
   // PHÂN TÍCH & BẮT PHẦN TỬ TRÊN TRANG IUH
   // ==========================================
 
-  // Tìm tất cả các bảng trên trang
-  function getAllTables() {
-    return Array.from(document.querySelectorAll('table'));
-  }
-
   // Tìm các hàng lớp học phần
   function findClassRows() {
     const rows = [];
@@ -179,7 +176,6 @@
       // Bỏ qua hàng tiêu đề
       if (tr.querySelector('th')) return;
       const text = tr.innerText || '';
-      // Một hàng lớp học phần IUH thường chứa chuỗi số mã LHP (từ 8-14 số) hoặc có radio/checkbox
       const hasInput = tr.querySelector('input[type="radio"], input[type="checkbox"]');
       const hasCodeMatch = text.match(/\b\d{8,14}\b/);
 
@@ -197,15 +193,11 @@
     if (!cells.length) return null;
 
     const rowText = tr.innerText || '';
-    // Tìm mã lớp học phần (dãy 8 - 14 chữ số)
     const codeMatch = rowText.match(/\b\d{8,14}\b/);
     const code = codeMatch ? codeMatch[0] : '';
 
-    // Tìm radio hoặc checkbox
     const selectorInput = tr.querySelector('input[type="radio"], input[type="checkbox"]');
 
-    // Phân tích sĩ số
-    // Cách 1: Format "Đã đăng ký / Tổng" ví dụ: "59/60" hoặc "60 / 60"
     let enrolled = -1;
     let max = -1;
     let remaining = -1;
@@ -216,7 +208,6 @@
       max = parseInt(fractionMatch[2], 10);
       remaining = max - enrolled;
     } else {
-      // Cách 2: Tìm cell chứa số từ các cột
       cells.forEach((td) => {
         const t = td.innerText.trim();
         if (/^\d{1,3}$/.test(t)) {
@@ -246,13 +237,11 @@
 
   // Tìm nút Đăng Ký trên trang IUH
   function findRegisterButton() {
-    // 1. Tìm theo ID hoặc Class quen thuộc của IUH/ASC
     const specific = document.querySelector(
       '#btnDangKy, #btnLuu, #btnSubmit, .btn-dangky, .btnDangKy, button[name*="DangKy"], input[name*="DangKy"]'
     );
     if (specific && isVisible(specific)) return specific;
 
-    // 2. Tìm theo nội dung text trên button / a / input
     const candidates = Array.from(
       document.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn')
     );
@@ -270,9 +259,8 @@
     return null;
   }
 
-  // Tìm modal xác nhận nếu có (SweetAlert, Bootstrap Modal...)
+  // Tìm modal xác nhận nếu có
   function handleConfirmDialog() {
-    // SweetAlert2 hoặc SweetAlert
     const swalConfirm = document.querySelector('.swal2-confirm, .swal-button--confirm');
     if (swalConfirm && isVisible(swalConfirm)) {
       addLog('Phát hiện hộp thoại xác nhận SweetAlert, tự động bấm Đồng ý...', 'warn');
@@ -280,7 +268,6 @@
       return true;
     }
 
-    // Bootstrap modal
     const modalConfirm = document.querySelector('.modal.in .btn-primary, .modal.show .btn-primary');
     if (modalConfirm && isVisible(modalConfirm)) {
       addLog('Phát hiện popup xác nhận, tự động bấm Xác nhận...', 'warn');
@@ -296,7 +283,7 @@
     return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
   }
 
-  // Click mô phỏng người dùng thật (Dispatch đầy đủ Pointer/Mouse events)
+  // Click mô phỏng người dùng thật
   function simulateRealClick(element) {
     if (!element) return;
     element.focus();
@@ -321,18 +308,15 @@
   function executeRegistration(targetItem, rowInfo) {
     addLog(`Đang chọn lớp [${targetItem.code}]...`, 'warn');
 
-    // 1. Chọn radio/checkbox của lớp học phần
     if (rowInfo.input) {
       simulateRealClick(rowInfo.input);
     } else {
       simulateRealClick(rowInfo.tr);
     }
 
-    // 2. Kiểm tra nhóm thực hành (nếu có)
     setTimeout(() => {
       selectPracticeGroupIfAny(targetItem);
 
-      // 3. Bấm nút đăng ký
       if (state.settings.autoRegister) {
         setTimeout(() => {
           const regBtn = findRegisterButton();
@@ -340,7 +324,6 @@
             addLog(`Đang bấm nút Đăng Ký (${regBtn.innerText || regBtn.value || 'Nút ĐK'})...`, 'warn');
             simulateRealClick(regBtn);
 
-            // Chờ xử lý popup xác nhận sau 200ms
             setTimeout(() => {
               handleConfirmDialog();
             }, 250);
@@ -354,7 +337,6 @@
 
   // Chọn nhóm thực hành nếu môn có chia ca TH
   function selectPracticeGroupIfAny(targetItem) {
-    // Tìm các radio hoặc checkbox trong khu vực thực hành
     const practiceRadios = Array.from(
       document.querySelectorAll(
         '#divNhomThucHanh input[type="radio"], .nhom-thuc-hanh input[type="radio"], table input[name*="ThucHanh"]'
@@ -366,7 +348,6 @@
     let selectedRadio = null;
 
     if (targetItem.practiceGroup) {
-      // Tìm nhóm theo mong muốn (vd: nhóm 1, nhóm 2)
       for (const rad of practiceRadios) {
         const parentText = (rad.closest('tr') || rad.parentElement || {}).innerText || '';
         if (parentText.includes(targetItem.practiceGroup)) {
@@ -376,9 +357,7 @@
       }
     }
 
-    // Nếu không tìm thấy nhóm chỉ định hoặc người dùng chọn tự động bất kỳ
     if (!selectedRadio && state.settings.autoSelectPractice) {
-      // Ưu tiên chọn nhóm đầu tiên còn chỗ hoặc enable
       for (const rad of practiceRadios) {
         if (!rad.disabled) {
           selectedRadio = rad;
@@ -401,12 +380,10 @@
     if (!state.isRunning) return;
 
     const rows = findClassRows();
-    let handledAny = false;
 
     for (const target of state.targets) {
       if (target.status === 'success' && state.settings.stopOnSuccess) continue;
 
-      // Tìm hàng tương ứng với mã LHP này
       let foundRow = null;
       for (const tr of rows) {
         const text = tr.innerText || '';
@@ -417,7 +394,6 @@
       }
 
       if (foundRow) {
-        // Cập nhật trạng thái hiển thị
         let statusStr = '';
         if (foundRow.max !== -1 && foundRow.enrolled !== -1) {
           statusStr = `${foundRow.enrolled}/${foundRow.max}`;
@@ -425,7 +401,6 @@
           statusStr = 'Đang mở';
         }
 
-        // Kiểm tra xem có chỗ hay không
         const hasSlot = foundRow.remaining > 0 || (foundRow.remaining === -1 && foundRow.input && !foundRow.input.disabled);
 
         if (hasSlot) {
@@ -433,7 +408,6 @@
           addLog(`🔥 PHÁT HIỆN LỚP [${target.code}] CÒN CHỖ (${statusStr})! TIẾN HÀNH ĐĂNG KÝ...`, 'success');
           playSoundAlert('slot_found');
 
-          // Thông báo Desktop
           chrome.runtime.sendMessage({
             action: 'NOTIFY_DESKTOP',
             title: '🔥 PHÁT HIỆN CHỖ TRỐNG!',
@@ -441,26 +415,20 @@
           });
 
           executeRegistration(target, foundRow);
-          handledAny = true;
-
-          // Đánh dấu thành công tạm thời hoặc chờ phản hồi
           target.status = 'attempting';
           updateTargetUI();
-          break; // Ưu tiên xử lý từng môn một
+          break;
         } else {
           target.status = 'full';
           updateTargetStatusInList(target.code, `Đầy (${statusStr})`);
         }
       } else {
-        // Không thấy hàng này trên bảng hiện tại
         updateTargetStatusInList(target.code, 'Chưa thấy trên bảng');
       }
     }
 
-    // Áp dụng bộ lọc bảng nếu được bật
     applyTableFilters();
 
-    // Lên lịch cho chu kỳ tiếp theo
     if (state.isRunning) {
       const delay = Math.max(300, parseInt(state.settings.intervalMs, 10) || 800);
       state.timerId = setTimeout(runHuntCycle, delay);
@@ -650,6 +618,7 @@
         </div>
         <div class="iuh-hud-controls">
           <button class="iuh-hud-btn-icon" id="iuh-btn-minimize" title="Thu nhỏ">_</button>
+          <button class="iuh-hud-btn-icon" id="iuh-btn-close" title="Đóng thu gọn">✕</button>
         </div>
       </div>
 
@@ -719,6 +688,13 @@
             <label class="iuh-setting-label">
               <input type="checkbox" id="iuh-chk-auto-register" checked />
               <span>Tự động bấm Đăng Ký khi có slot</span>
+            </label>
+          </div>
+
+          <div class="iuh-setting-row">
+            <label class="iuh-setting-label">
+              <input type="checkbox" id="iuh-chk-auto-open" />
+              <span>Tự động bung to bảng khi vào trang</span>
             </label>
           </div>
 
@@ -796,18 +772,30 @@
 
     document.body.appendChild(hud);
 
-    // Minimized Floating Ball
+    // Minimized Floating Pill Button
     const minBall = document.createElement('div');
     minBall.id = 'iuh-dkhp-hud-minimized';
     minBall.innerHTML = `
-      <span>⚡</span>
+      <span style="font-size: 14px;">⚡</span>
+      <span id="iuh-mini-label">IUH DKHP PRO</span>
       <span class="iuh-mini-dot" id="iuh-mini-status-dot"></span>
     `;
-    minBall.title = 'Mở rộng IUH DKHP Pro';
+    minBall.title = 'Bấm vào để mở bảng điều khiển ĐKHP';
     document.body.appendChild(minBall);
+
+    // Kiểm tra trạng thái: Nếu đã thu gọn hoặc chưa bật autoOpenHUD thì MẶC ĐỊNH GỌN LUÔN
+    const isMinimized = state.settings.isMinimized !== false;
+    if (isMinimized) {
+      hud.style.display = 'none';
+      minBall.style.display = 'flex';
+    } else {
+      hud.style.display = 'block';
+      minBall.style.display = 'none';
+    }
 
     bindHUDEvents();
     makeDraggable(hud, document.getElementById('iuh-hud-drag-handle'));
+    makeDraggable(minBall, minBall);
   }
 
   // ==========================================
@@ -817,16 +805,61 @@
     const hud = document.getElementById('iuh-dkhp-hud');
     const minBall = document.getElementById('iuh-dkhp-hud-minimized');
 
-    // Thu nhỏ / Phóng to
-    document.getElementById('iuh-btn-minimize').addEventListener('click', () => {
+    // Thu nhỏ / Đóng
+    const minimizeHUD = () => {
       hud.style.display = 'none';
       minBall.style.display = 'flex';
-    });
+      state.settings.isMinimized = true;
+      saveConfig();
+      addLog('Đã thu gọn bảng điều khiển.', 'info');
+    };
 
-    minBall.addEventListener('click', () => {
+    // Phóng to / Mở bảng
+    const expandHUD = () => {
       minBall.style.display = 'none';
       hud.style.display = 'block';
-    });
+      state.settings.isMinimized = false;
+      saveConfig();
+    };
+
+    document.getElementById('iuh-btn-minimize').addEventListener('click', minimizeHUD);
+    const btnClose = document.getElementById('iuh-btn-close');
+    if (btnClose) btnClose.addEventListener('click', minimizeHUD);
+
+    minBall.addEventListener('click', expandHUD);
+
+    // Tự động mở bảng checkbox
+    const chkAutoOpen = document.getElementById('iuh-chk-auto-open');
+    if (chkAutoOpen) {
+      chkAutoOpen.checked = !!state.settings.autoOpenHUD;
+      chkAutoOpen.addEventListener('change', (e) => {
+        state.settings.autoOpenHUD = e.target.checked;
+        if (!e.target.checked) {
+          state.settings.isMinimized = true;
+        }
+        saveConfig();
+      });
+    }
+
+    // Lắng nghe lệnh từ popup hoặc background
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+        if (request.action === 'EXPAND_HUD') {
+          expandHUD();
+          sendResponse({ success: true });
+        } else if (request.action === 'MINIMIZE_HUD') {
+          minimizeHUD();
+          sendResponse({ success: true });
+        } else if (request.action === 'TOGGLE_HUD') {
+          if (hud.style.display === 'none') {
+            expandHUD();
+          } else {
+            minimizeHUD();
+          }
+          sendResponse({ success: true, isMinimized: state.settings.isMinimized });
+        }
+      });
+    }
 
     // Chuyển Tabs
     const tabs = hud.querySelectorAll('.iuh-hud-tab');
@@ -984,18 +1017,21 @@
     const dot = document.getElementById('iuh-status-dot');
     const text = document.getElementById('iuh-status-text');
     const miniDot = document.getElementById('iuh-mini-status-dot');
+    const miniLabel = document.getElementById('iuh-mini-label');
     const btnStart = document.getElementById('iuh-btn-start');
     const btnStop = document.getElementById('iuh-btn-stop');
 
     if (running) {
       if (dot) dot.className = 'iuh-status-dot running';
       if (miniDot) miniDot.className = 'iuh-mini-dot running';
+      if (miniLabel) miniLabel.innerText = 'Đang săn slot...';
       if (text) text.innerText = 'Đang săn slot...';
       if (btnStart) btnStart.style.display = 'none';
       if (btnStop) btnStop.style.display = 'inline-flex';
     } else {
       if (dot) dot.className = 'iuh-status-dot';
       if (miniDot) miniDot.className = 'iuh-mini-dot';
+      if (miniLabel) miniLabel.innerText = 'IUH DKHP PRO';
       if (text) text.innerText = 'Đang tạm dừng';
       if (btnStart) btnStart.style.display = 'inline-flex';
       if (btnStop) btnStop.style.display = 'none';
@@ -1078,7 +1114,6 @@
 
     container.innerHTML = html;
 
-    // Gắn sự kiện xóa
     container.querySelectorAll('.iuh-btn-del').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const code = e.currentTarget.getAttribute('data-code');
@@ -1104,14 +1139,15 @@
   // ==========================================
   function makeDraggable(element, handle) {
     let posX = 0, posY = 0, initialMouseX = 0, initialMouseY = 0;
+    let hasMoved = false;
 
     handle.onmousedown = dragMouseDown;
 
     function dragMouseDown(e) {
-      // Bỏ qua nếu bấm vào nút điều khiển
       if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
 
       e.preventDefault();
+      hasMoved = false;
       initialMouseX = e.clientX;
       initialMouseY = e.clientY;
       document.onmouseup = closeDragElement;
@@ -1119,7 +1155,10 @@
     }
 
     function elementDrag(e) {
-      e.preventDefault();
+      const dx = Math.abs(initialMouseX - e.clientX);
+      const dy = Math.abs(initialMouseY - e.clientY);
+      if (dx > 3 || dy > 3) hasMoved = true;
+
       posX = initialMouseX - e.clientX;
       posY = initialMouseY - e.clientY;
       initialMouseX = e.clientX;
@@ -1128,12 +1167,12 @@
       const newTop = element.offsetTop - posY;
       const newLeft = element.offsetLeft - posX;
 
-      // Giới hạn trong màn hình
-      const maxTop = window.innerHeight - 80;
-      const maxLeft = window.innerWidth - 80;
+      const maxTop = window.innerHeight - element.offsetHeight - 10;
+      const maxLeft = window.innerWidth - element.offsetWidth - 10;
 
       element.style.top = Math.max(10, Math.min(newTop, maxTop)) + 'px';
       element.style.left = Math.max(10, Math.min(newLeft, maxLeft)) + 'px';
+      element.style.bottom = 'auto';
       element.style.right = 'auto';
     }
 
@@ -1141,6 +1180,12 @@
       document.onmouseup = null;
       document.onmousemove = null;
     }
+
+    handle.addEventListener('click', (e) => {
+      if (hasMoved) {
+        e.stopPropagation();
+      }
+    }, true);
   }
 
   // ==========================================
@@ -1152,13 +1197,11 @@
       setupKeepAlive();
       addLog('Đã khởi tạo IUH DKHP Pro sẵn sàng!', 'success');
 
-      // Tự động quét bảng sau khi trang load
       setTimeout(() => {
         injectInlineButtons();
         applyTableFilters();
       }, 1200);
 
-      // Quan sát DOM thay đổi (khi sinh viên chọn môn học khác làm bảng load lại bằng AJAX)
       const observer = new MutationObserver((mutations) => {
         let hasTableChanges = false;
         for (const m of mutations) {
@@ -1179,11 +1222,9 @@
     });
   }
 
-  // Chờ DOM sẵn sàng
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
 })();
-
