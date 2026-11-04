@@ -1,5 +1,5 @@
 /**
- * IUH DKHP Pro - Popup Script
+ * IUH DKHP Pro - Popup Script (Turbo Edition)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const targetList = document.getElementById('popup-target-list');
   const targetCount = document.getElementById('target-count');
 
+  const chkTurbo = document.getElementById('setting-turbo');
+  const chkZeroDelay = document.getElementById('setting-zero-delay');
   const chkAutoOpen = document.getElementById('setting-auto-open');
   const chkAutoReg = document.getElementById('setting-auto-reg');
   const chkSound = document.getElementById('setting-sound');
@@ -69,6 +71,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Render settings
       chkAutoOpen.checked = !!settings.autoOpenHUD;
+
+      if (typeof settings.turboMode !== 'undefined') {
+        chkTurbo.checked = settings.turboMode;
+      } else {
+        chkTurbo.checked = true;
+      }
+
+      if (typeof settings.zeroDelayMode !== 'undefined') {
+        chkZeroDelay.checked = settings.zeroDelayMode;
+      } else {
+        chkZeroDelay.checked = true;
+      }
 
       if (typeof settings.autoRegister !== 'undefined') {
         chkAutoReg.checked = settings.autoRegister;
@@ -165,6 +179,16 @@ document.addEventListener('DOMContentLoaded', () => {
   btnAdd.addEventListener('click', addTarget);
   inputCode.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') addTarget();
+  });
+
+  chkTurbo.addEventListener('change', (e) => {
+    const enabled = e.target.checked;
+    updateSetting('turboMode', enabled);
+    chrome.runtime.sendMessage({ action: 'SET_TURBO_MODE', enabled: enabled });
+  });
+
+  chkZeroDelay.addEventListener('change', (e) => {
+    updateSetting('zeroDelayMode', e.target.checked);
   });
 
   chkAutoOpen.addEventListener('change', (e) => {

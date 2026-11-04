@@ -6,7 +6,7 @@
 (function () {
   console.log('[IUH DKHP Pro] Injected script đã nhúng vào main world!');
 
-  // Hook XMLHttpRequest để bắt response từ dkhp.iuh.edu.vn
+  // Hook XMLHttpRequest để bắt response và lỗi mạng từ dkhp.iuh.edu.vn
   const originalXHR = window.XMLHttpRequest;
   function CustomXHR() {
     const xhr = new originalXHR();
@@ -22,27 +22,72 @@
 
     xhr.addEventListener('load', function () {
       try {
-        if (
+        const isDkhpReq =
           url.includes('DangKy') ||
           url.includes('LopHocPhan') ||
           url.includes('HocPhan') ||
           url.includes('api') ||
-          url.includes('action')
-        ) {
-          window.postMessage(
-            {
-              source: 'IUH_DKHP_INJECTED',
-              type: 'XHR_RESPONSE',
-              url: url,
-              status: xhr.status,
-              response: xhr.responseText
-            },
-            '*'
-          );
+          url.includes('action');
+
+        if (isDkhpReq) {
+          // Bắt lỗi server nghẽn (500, 502 Bad Gateway, 503, 504 Gateway Timeout)
+          if (xhr.status >= 500 || xhr.status === 0) {
+            window.postMessage(
+              {
+                source: 'IUH_DKHP_INJECTED',
+                type: 'SERVER_NETWORK_ERROR',
+                url: url,
+                status: xhr.status,
+                statusText: xhr.statusText
+              },
+              '*'
+            );
+          } else {
+            window.postMessage(
+              {
+                source: 'IUH_DKHP_INJECTED',
+                type: 'XHR_RESPONSE',
+                url: url,
+                status: xhr.status,
+                response: xhr.responseText
+              },
+              '*'
+            );
+          }
         }
       } catch (err) {
         // ignore
       }
+    });
+
+    xhr.addEventListener('error', function () {
+      try {
+        window.postMessage(
+          {
+            source: 'IUH_DKHP_INJECTED',
+            type: 'SERVER_NETWORK_ERROR',
+            url: url,
+            status: 0,
+            statusText: 'Network Connection Failed'
+          },
+          '*'
+        );
+      } catch (e) {}
+    });
+
+    xhr.addEventListener('timeout', function () {
+      try {
+        window.postMessage(
+          {
+            source: 'IUH_DKHP_INJECTED',
+            type: 'SERVER_NETWORK_ERROR',
+            url: url,
+            status: 504,
+            statusText: 'Gateway / Connection Timed Out'
+          },
+          '*'
+        );
+      } catch (e) {}
     });
 
     return xhr;
@@ -53,9 +98,9 @@
   const originalFetch = window.fetch;
   if (originalFetch) {
     window.fetch = async function (...args) {
-      const response = await originalFetch.apply(this, args);
+      const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
       try {
-        const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url) || '';
+        const response = await originalFetch.apply(this, args);
         if (
           url.includes('DangKy') ||
           url.includes('LopHocPhan') ||
@@ -63,24 +108,55 @@
           url.includes('api') ||
           url.includes('action')
         ) {
-          const clone = response.clone();
-          clone.text().then((text) => {
+          if (response.status >= 500) {
             window.postMessage(
               {
                 source: 'IUH_DKHP_INJECTED',
-                type: 'FETCH_RESPONSE',
+                type: 'SERVER_NETWORK_ERROR',
                 url: url,
                 status: response.status,
-                response: text
+                statusText: response.statusText
               },
               '*'
             );
-          });
+          } else {
+            const clone = response.clone();
+            clone.text().then((text) => {
+              window.postMessage(
+                {
+                  source: 'IUH_DKHP_INJECTED',
+                  type: 'FETCH_RESPONSE',
+                  url: url,
+                  status: response.status,
+                  response: text
+                },
+                '*'
+              );
+            });
+          }
         }
+        return response;
       } catch (e) {
-        // ignore
+        if (
+          url.includes('DangKy') ||
+          url.includes('LopHocPhan') ||
+          url.includes('HocPhan') ||
+          url.includes('api') ||
+          url.includes('action')
+        ) {
+          window.postMessage(
+            {
+              source: 'IUH_DKHP_INJECTED',
+              type: 'SERVER_NETWORK_ERROR',
+              url: url,
+              status: 0,
+              statusText: e.message || 'Fetch Failed'
+            },
+            '*'
+          );
+        }
+        throw e;
       }
-      return response;
     };
   }
 
@@ -115,4 +191,3 @@
     }
   });
 })();
-

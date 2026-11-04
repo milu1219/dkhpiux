@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "IUH DKHP Pro - Tool Đăng Ký Học Phần IUH",
-  "version": "1.0.0",
-  "description": "Extension hỗ trợ sinh viên Đại học Công nghiệp TP.HCM (IUH) đăng ký học phần, canh săn slot lớp đầy, auto click giờ G, giữ phiên đăng nhập.",
+  "name": "IUH DKHP Pro - Tool Đăng Ký Học Phần & Turbo Vượt Lag",
+  "version": "1.2.0",
+  "description": "Extension hỗ trợ sinh viên IUH đăng ký học phần, săn slot lớp đầy, auto click giờ G, giữ phiên và tích hợp Turbo Network Booster chống lag mạng/sập server.",
   "author": "IUH Student Support",
   "icons": {
     "16": "icons/icon16.png",
@@ -16,7 +16,7 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     },
-    "default_title": "IUH DKHP Pro"
+    "default_title": "IUH DKHP Pro (Turbo Edition)"
   },
   "background": {
     "service_worker": "background/service-worker.js"
@@ -24,7 +24,8 @@
   "permissions": [
     "storage",
     "alarms",
-    "notifications"
+    "notifications",
+    "declarativeNetRequest"
   ],
   "host_permissions": [
     "*://dkhp.iuh.edu.vn/*",

@@ -1,6 +1,6 @@
-# HƯỚNG DẪN CÀI ĐẶT & SỬ DỤNG TOOL ĐKHP IUH TRÊN TRÌNH DUYỆT BRAVE
+# HƯỚNG DẪN CÀI ĐẶT & SỬ DỤNG TOOL ĐKHP IUH (TURBO EDITION) TRÊN BRAVE
 
-Chào bạn! Đây là bộ công cụ **IUH DKHP PRO** (Extension chuẩn Manifest V3) được thiết kế chuyên biệt cho sinh viên **Trường Đại học Công nghiệp TP.HCM (IUH)** để đăng ký học phần tại trang `https://dkhp.iuh.edu.vn`.
+Chào bạn! Đây là bản nâng cấp **IUH DKHP PRO - TURBO EDITION** (Manifest V3) đã được tích hợp bộ công cụ **Tăng cường mạng & Vượt lag giờ G** dành riêng cho sinh viên Đại học Công nghiệp TP.HCM (IUH).
 
 ---
 
@@ -17,61 +17,62 @@ Chào bạn! Đây là bộ công cụ **IUH DKHP PRO** (Extension chuẩn Manif
 3. **Bước 3**: Nhấn vào nút **"Tải tiện ích đã giải nén" (Load unpacked)** ở góc trên bên trái màn hình:
    * Tìm và chọn đúng thư mục chứa tool:
    ```text
-   C:\Users\hi\Desktop\tool dkhp
+   c:\Users\hi\Desktop\tool mang
    ```
    * Nhấn **Select Folder** (Chọn thư mục).
 
-👉 **Xong!** Bạn sẽ thấy extension **IUH DKHP PRO - Tool Đăng Ký Học Phần IUH** xuất hiện với icon màu xanh có tia sét vàng. Bạn nên bấm vào biểu tượng "Mảnh ghép" ở góc trên thanh công cụ của Brave và bấm "Ghim" (Pin) extension để tiện theo dõi.
+👉 **Xong!** Bạn sẽ thấy extension **IUH DKHP Pro - Tool Đăng Ký Học Phần & Turbo Vượt Lag (v1.2.0)** xuất hiện. Hãy bấm vào biểu tượng "Mảnh ghép" ở thanh công cụ Brave và bấm "Ghim" (Pin) extension để tiện theo dõi.
 
 ---
 
-## 🛡️ 2. LƯU Ý QUAN TRỌNG ĐỐI VỚI TRÌNH DUYỆT BRAVE (BRAVE SHIELDS)
+## ⚡ 2. CÁC TÍNH NĂNG TĂNG CƯỜNG MẠNG VƯỢT LAG (TURBO MODE)
 
-Trình duyệt Brave có cơ chế bảo mật tích hợp rất nghiêm ngặt (**Brave Shields**). Đôi khi Shields sẽ chặn cookie phiên hoặc các request ngầm của trang web trường:
+Khi bạn vào trang `https://dkhp.iuh.edu.vn` (hoặc mở trang giả lập test):
 
-* Khi truy cập trang **https://dkhp.iuh.edu.vn**:
-* Hãy bấm vào biểu tượng **Đầu sư tử màu cam (Brave Shields)** ở góc phải thanh địa chỉ.
-* Gạt công tắc sang trạng thái **TẮT** cho trang này (*Shields are DOWN for this site*).
-* Việc này giúp kết nối đăng nhập của trường ổn định 100%, không bị văng phiên.
+### 🚀 Tính năng A: Chế độ Turbo Network Mode (Chặn tài nguyên nặng)
+* **Vì sao cần?** Khi mạng lag hoặc server trường quá tải, việc tải hình ảnh, banner, font chữ trang trí sẽ khiến trình duyệt bị "treo", trắng trang và không gửi được lệnh ĐKHP.
+* **Cơ chế:** Khi bật công tắc **Turbo Mode** trong tab `⚡ Vượt Lag` (hoặc trong popup icon), extension tự động chặn toàn bộ ảnh, media, font nặng của IUH. Trang web sẽ tải siêu nhẹ (tiết kiệm 90% băng thông) giúp gửi request đăng ký thành công ngay cả với mạng 3G/Wi-Fi yếu. *(Extension tự động miễn trừ Captcha nếu có nên không lo mất mã xác nhận)*.
 
----
+### 📡 Tính năng B: Đo Ping & Theo dõi trạng thái máy chủ (Live Latency)
+* Trên thanh tiêu đề HUD luôn hiển thị chỉ số **Ping (ms)**:
+  * **Xanh lá (dưới 150ms):** Đường truyền mạng cực thông thoáng, sẵn sàng săn slot.
+  * **Vàng (150ms - 400ms):** Mạng hơi chậm hoặc server đang bắt đầu đông sinh viên.
+  * **Đỏ (trên 400ms hoặc Timeout):** Máy chủ đang bị nghẽn nặng.
 
-## ⚡ 3. CÁC TÍNH NĂNG VÀ CÁCH SỬ DỤNG THỰC CHIẾN
+### 🔁 Tính năng C: Tự Động Retry khi dính lỗi mạng (502 / 503 / 504 / Timeout)
+* Khi dính mã lỗi máy chủ quá tải (`502 Bad Gateway`, `504 Gateway Timeout`), tool không bỏ cuộc mà sẽ tự động gửi lại lệnh ĐK ngay lập tức theo nhịp delay đã chọn (mặc định 400ms).
+* Bạn không cần phải bấm F5 thủ công (F5 thủ công dễ làm mất phiên đăng nhập).
 
-Khi bạn vào trang `https://dkhp.iuh.edu.vn` (hoặc `https://sv.iuh.edu.vn`), **Bảng điều khiển HUD** sẽ tự động hiện nổi ở góc màn hình.
-
-### Tính năng 1: 🎯 Săn Slot Lớp Đầy (Auto Slot Hunter)
-* **Tình huống:** Lớp bạn muốn học đã hết chỗ (`60/60`), bạn muốn canh khi có ai hủy môn hoặc trường mở thêm slot là hốt ngay.
-* **Cách dùng:**
-  1. Nhập Mã lớp học phần (vd: `420300123401`) vào ô `Nhập mã LHP` rồi bấm **+ Thêm** (hoặc bấm trực tiếp nút `⚡ Săn` gắn sẵn trên bảng môn học của IUH).
-  2. Bấm nút **🚀 BẮT ĐẦU SĂN**.
-  3. Tool sẽ liên tục quét sĩ số. Ngay khi sĩ số `< Sĩ số tối đa` (có chỗ trống), tool sẽ:
-     * Tự động tick chọn lớp.
-     * Tự động chọn nhóm thực hành (nếu môn có thực hành).
-     * Tự động bấm nút "Đăng ký học phần".
-     * Tự động bấm xác nhận popup.
-     * Phát chuông chiến thắng 🎵 và gửi thông báo Desktop!
-
-### Tính năng 2: ⚡ Auto Click Giờ G (00:00:00)
-* **Tình huống:** Đợt đăng ký sắp mở lúc 00h00 hoặc 07h00 sáng, sinh viên chen chúc đăng ký.
-* **Cách dùng:**
-  1. Thêm trước các mã lớp bạn muốn đăng ký vào danh sách của tool.
-  2. Đúng giây mở cổng, bấm nút **⚡ ĐK Ngay** hoặc bật **BẮT ĐẦU SĂN**.
-  3. Tool sẽ thực hiện thao tác nhanh hơn bấm tay hàng chục lần.
-
-### Tính năng 3: 🛡️ Giữ Phiên Đăng Nhập (Anti-Logout)
-* Cổng trường IUH thường tự động logout sau khoảng 10-15 phút không thao tác. Nếu bạn treo máy chờ giờ mở cổng, bạn rất dễ bị văng ra ngoài mà không biết.
-* Tool được tích hợp sẵn tính năng **Heartbeat Ping** ngầm mỗi 2 phút, giúp duy trì cookie đăng nhập liên tục suốt nhiều giờ.
-
-### Tính năng 4: 🔍 Bộ Lọc & Highlight Thông Minh
-* **Ẩn lớp đã đầy:** Giúp bảng môn học gọn gàng, chỉ hiển thị những lớp còn cơ hội đăng ký.
-* **Tô màu lớp còn chỗ:** Làm nổi bật màu xanh lá cây cho các lớp còn slot để bạn dễ quan sát.
-* **Nút gắn trực tiếp 1-click:** Bấm `⚡ Gắn nút [+ Săn] vào các dòng trên bảng`, mỗi lớp sẽ có 1 nút nhỏ để bạn thêm nhanh vào tool chỉ bằng 1 cú click chuột!
+### 🔄 Tính năng D: Soft-Refresh (Làm mới bảng không cần F5)
+* Nút **🔄 Tải Lại Bảng Nhanh** trong tab `⚡ Vượt Lag` giúp bạn yêu cầu máy chủ nạp lại dữ liệu lớp học phần tức thì mà không cần nạp lại toàn bộ trang web.
 
 ---
 
-## 🎵 4. ÂM THANH BÁO HIỆU
-Tool sử dụng bộ tổng hợp âm thanh **Web Audio API** tích hợp sẵn bên trong trình duyệt:
-* Không tải file âm thanh từ bên ngoài, hoạt động offline 100%.
-* Âm thanh reo chuông khi đăng ký thành công hoặc có slot trống. Bạn có thể bấm nút **"Thử loa"** trên widget để kiểm tra âm lượng.
+## 🎯 3. QUY TRÌNH SĂN MÔN GIỜ G (CHUẨN 100%)
 
+1. **Trước giờ mở cổng 10-15 phút:**
+   * Đăng nhập vào `https://dkhp.iuh.edu.vn`.
+   * Mở widget tool lên, kiểm tra thấy **Ping xanh lá**.
+   * Nhập sẵn các Mã lớp học phần cần đăng ký vào danh sách theo dõi.
+   * Để nguyên trình duyệt, tính năng **Keep-Alive** sẽ tự động giữ bạn không bị văng phiên.
+2. **Trước giờ mở cổng 30 giây:**
+   * Bấm nút **🚀 BẮT ĐẦU SĂN**.
+   * Kiểm tra công tắc **Turbo Network Mode** đang BẬT.
+3. **Đúng giờ G:**
+   * Ngay khi trường mở hệ thống, tool sẽ nhận diện slot và bắn lệnh đăng ký với độ trễ tối thiểu.
+   * Nếu server bị nghẽn 502/504, cơ chế Auto-Retry sẽ liên tục nhồi lệnh cho đến khi lọt vào thành công!
+
+---
+
+## 🧪 4. THỬ NGHIỆM TRÊN TRANG MÔ PHỎNG (TEST SIMULATOR)
+
+Để kiểm tra trước các tính năng mà không cần đợi đợt đăng ký thật:
+1. Mở PowerShell trong thư mục này và chạy:
+   ```powershell
+   node test-server.js
+   ```
+2. Mở trình duyệt Brave truy cập:
+   ```text
+   http://localhost:3000/test_dkhp_simulator.html
+   ```
+3. Bạn sẽ thấy widget HUD xuất hiện và có thể thử nghiệm đầy đủ các tính năng Săn slot, Bật/Tắt Turbo, Đo Ping, Thử loa âm thanh...
