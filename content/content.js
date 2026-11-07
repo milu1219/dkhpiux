@@ -163,30 +163,75 @@
   // ==========================================
   // LOAD & SAVE CẤU HÌNH TỪ STORAGE
   // ==========================================
+  // Helper gửi message an toàn (không bao giờ văng lỗi khi vừa reload extension mà chưa F5 trang)
+  function safeSendMessage(payload) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage(payload, () => {
+          void chrome.runtime.lastError;
+        });
+      }
+    } catch (e) {}
+  }
+
   function loadConfig(callback) {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.get(['dkhp_settings', 'dkhp_targets'], (data) => {
-        if (data.dkhp_settings) {
-          state.settings = Object.assign(state.settings, data.dkhp_settings);
-        }
-        if (Array.isArray(data.dkhp_targets)) {
-          state.targets = data.dkhp_targets;
-        }
-        if (callback) callback();
-      });
-    } else if (callback) {
-      callback();
-    }
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.get(['dkhp_settings', 'dkhp_targets'], (data) => {
+          if (chrome.runtime.lastError) {
+            if (callback) callback();
+            return;
+          }
+          if (data && data.dkhp_settings) {
+            state.settings = Object.assign(state.settings, data.dkhp_settings);
+          }
+          if (data && Array.isArray(data.dkhp_targets)) {
+            state.targets = data.dkhp_targets;
+          }
+          if (callback) callback();
+        });
+        return;
+      }
+    } catch (e) {}
+
+    try {
+      const savedTargets = localStorage.getItem('__iuh_dkhp_targets__');
+      if (savedTargets) state.targets = JSON.parse(savedTargets) || [];
+    } catch (e) {}
+    if (callback) callback();
   }
 
   function saveConfig() {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.set({
-        dkhp_settings: state.settings,
-        dkhp_targets: state.targets
+    try {
+      localStorage.setItem('__iuh_dkhp_targets__', JSON.stringify(state.targets));
+    } catch (e) {}
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id && chrome.storage && chrome.storage.local) {
+        chrome.storage.local.set({
+          dkhp_settings: state.settings,
+          dkhp_targets: state.targets
+        });
+      }
+    } catch (e) {}
+  }
+
+  // Tự động đồng bộ danh sách mã LHP giữa tab Chương trình khung, Popup và tab Đăng ký học phần theo thời gian thực
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local') {
+          if (changes.dkhp_targets && Array.isArray(changes.dkhp_targets.newValue)) {
+            state.targets = changes.dkhp_targets.newValue;
+            updateTargetUI();
+            applyTableFilters();
+          }
+          if (changes.dkhp_settings && changes.dkhp_settings.newValue) {
+            state.settings = Object.assign(state.settings, changes.dkhp_settings.newValue);
+          }
+        }
       });
     }
-  }
+  } catch (e) {}
 
   // ==========================================
   // ĐO PING THỜI GIAN THỰC ĐẾN MÁY CHỦ IUH
@@ -966,7 +1011,7 @@
     playSoundAlert('slot_found');
 
     updateHUDStatus(true);
-    chrome.runtime.sendMessage({ action: 'SET_BADGE', text: 'ON', color: '#16a34a' });
+    safeSendMessage({ action: 'SET_BADGE', text: 'ON', color: '#16a34a' });
 
     runHuntCycle();
   }
@@ -979,7 +1024,7 @@
     }
     addLog('ĐÃ TẠM DỪNG SĂN SLOT', 'warn');
     updateHUDStatus(false);
-    chrome.runtime.sendMessage({ action: 'SET_BADGE', text: '', color: '#64748b' });
+    safeSendMessage({ action: 'SET_BADGE', text: '', color: '#64748b' });
   }
 
   // ==========================================
@@ -1053,7 +1098,15 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'iuh-inline-add-btn';
-      btn.innerHTML = '⚡ Săn';
+      btn.setAttribute('data-iuh-code', info.code);
+
+      const alreadyInList = state.targets.some((t) => t.code === info.code);
+      if (alreadyInList) {
+        btn.classList.add('added');
+        btn.innerHTML = '✓ Đang săn';
+      } else {
+        btn.innerHTML = '⚡ Săn';
+      }
       btn.title = `Thêm mã ${info.code} vào danh sách săn môn của Tool`;
 
       btn.addEventListener('click', (e) => {
@@ -1062,7 +1115,15 @@
         addTargetCode(info.code);
         btn.classList.add('added');
         btn.innerHTML = '✓ Đang săn';
-        // Tự động bật săn và tiến hành chọn + đăng ký ngay lập tức!
+
+        // Nếu đang ở trang Chương trình khung (chỉ xem mã, không có bảng đăng ký học phần), lưu mã để đồng bộ sang tab ĐKHP
+        const isCurriculumPage = window.location.href.toLowerCase().includes('chuong-trinh-khung');
+        if (isCurriculumPage) {
+          updateTargetStatusInList(info.code, 'Đã lưu (Mở trang ĐKHP để săn)');
+          return;
+        }
+
+        // Nếu đang ở trang Đăng ký học phần: Tự động bật săn và tiến hành chọn + đăng ký ngay lập tức!
         if (!state.isRunning) {
           startHunting();
         }
@@ -1744,10 +1805,13 @@
   }
 
   function addTargetCode(code) {
-    code = code.trim();
+    code = String(code || '').trim();
     if (!code) return;
     if (state.targets.some((t) => t.code === code)) {
-      addLog(`Mã LHP [${code}] đã tồn tại trong danh sách!`, 'warn');
+      updateTargetUI();
+      applyTableFilters();
+      saveConfig();
+      addLog(`Mã [${code}] đã có trong danh sách theo dõi!`, 'info');
       return;
     }
 
@@ -1757,18 +1821,25 @@
       status: 'idle'
     });
 
-    saveConfig();
     updateTargetUI();
     applyTableFilters();
-    addLog(`Đã thêm mã LHP: ${code}`, 'success');
+    saveConfig();
+    addLog(`Đã thêm mã theo dõi: ${code}`, 'success');
   }
 
   function removeTargetCode(code) {
     state.targets = state.targets.filter((t) => t.code !== code);
-    saveConfig();
     updateTargetUI();
     applyTableFilters();
-    addLog(`Đã xóa mã LHP: ${code}`, 'info');
+    saveConfig();
+
+    // Khôi phục lại nút [⚡ Săn] trên bảng khi xóa mã khỏi danh sách
+    document.querySelectorAll(`.iuh-inline-add-btn[data-iuh-code="${code}"]`).forEach((btn) => {
+      btn.classList.remove('added');
+      btn.innerHTML = '⚡ Săn';
+    });
+
+    addLog(`Đã xóa mã: ${code}`, 'info');
   }
 
   function updateTargetUI() {
