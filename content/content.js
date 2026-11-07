@@ -285,18 +285,123 @@
   // PHÂN TÍCH & BẮT PHẦN TỬ (SỬ DỤNG TEXTCONTENT)
   // ==========================================
 
-  // Tìm các hàng lớp học phần nhanh (Dùng textContent để không gây reflow)
+  // Tự động tích chọn ô "HIỂN THỊ LỚP HỌC PHẦN KHÔNG TRÙNG LỊCH" trên trang ĐKHP IUH
+  function ensureNoScheduleConflictChecked() {
+    try {
+      // Cách 1: Tìm theo thuộc tính id/name/onclick liên quan đến Trùng Lịch
+      let chk = document.querySelector(
+        'input[type="checkbox"][id*="TrungLich" i], input[type="checkbox"][name*="TrungLich" i], input[type="checkbox"][onclick*="TrungLich" i], input[type="checkbox"][id*="trunglich" i]'
+      );
+
+      // Cách 2: Tìm theo nhãn text "HIỂN THỊ LỚP HỌC PHẦN KHÔNG TRÙNG LỊCH"
+      if (!chk) {
+        const allInputs = document.querySelectorAll('input[type="checkbox"]');
+        for (let i = 0; i < allInputs.length; i++) {
+          const inp = allInputs[i];
+          if (inp.closest('#iuh-dkhp-hud')) continue;
+          const parentText = ((inp.parentElement && inp.parentElement.textContent) || '') +
+                             ((inp.nextElementSibling && inp.nextElementSibling.textContent) || '') +
+                             ((inp.closest('label') && inp.closest('label').textContent) || '');
+          if (parentText.toLowerCase().includes('không trùng lịch')) {
+            chk = inp;
+            break;
+          }
+        }
+      }
+
+      if (chk && !chk.checked) {
+        simulateRealClick(chk);
+        if (!chk.checked) {
+          chk.checked = true;
+          chk.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        addLog('✅ Đã tự động tích chọn "HIỂN THỊ LỚP HỌC PHẦN KHÔNG TRÙNG LỊCH"!', 'success');
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  // Tìm mã HP / mã LHP hợp lệ trong từng ô <td> (tránh lỗi dính chữ giữa các cột <td> khi dùng tr.textContent)
+  function extractCodeFromRow(tr) {
+    const cells = tr.cells;
+    if (!cells || !cells.length) return null;
+
+    // Ưu tiên 1: Tìm ô chứa mã bắt đầu bằng 420... (chuẩn mã HP 10 số / mã LHP 12 số của IUH)
+    for (let i = 0; i < cells.length; i++) {
+      const cellText = (cells[i].textContent || '').trim();
+      const match = cellText.match(/(?:^|\D)(420\d{7,11})(?:\D|$)/);
+      if (match) {
+        return { code: match[1], cell: cells[i], cellIndex: i };
+      }
+    }
+
+    // Ưu tiên 2: Tìm ô chứa dãy số độc lập từ 10 - 14 chữ số (mã LHP / mã HP chung)
+    for (let i = 0; i < cells.length; i++) {
+      const cellText = (cells[i].textContent || '').trim();
+      const match = cellText.match(/(?:^|\D)(\d{10,14})(?:\D|$)/);
+      if (match) {
+        return { code: match[1], cell: cells[i], cellIndex: i };
+      }
+    }
+
+    return null;
+  }
+
+  // Tìm các hàng lớp học phần nhanh (Bỏ qua các môn thuộc mục HỌC PHẦN BẮT BUỘC hoặc có tích cột Bắt buộc)
   function findClassRows() {
     const rows = [];
     const allTrs = document.querySelectorAll('table tr');
+    let currentTable = null;
+    let inCompulsorySection = false;
+    let compulsoryColIndex = -1;
 
     for (let i = 0; i < allTrs.length; i++) {
       const tr = allTrs[i];
+      const parentTable = tr.closest('table');
+      if (parentTable !== currentTable) {
+        currentTable = parentTable;
+        inCompulsorySection = false;
+        compulsoryColIndex = -1;
+        if (parentTable) {
+          const ths = parentTable.querySelectorAll('th');
+          for (let h = 0; h < ths.length; h++) {
+            if ((ths[h].textContent || '').toLowerCase().includes('bắt buộc')) {
+              compulsoryColIndex = h;
+              break;
+            }
+          }
+        }
+      }
+
       if (tr.firstElementChild && tr.firstElementChild.tagName === 'TH') continue;
 
-      const text = tr.textContent || '';
+      const rowTextLower = (tr.textContent || '').toLowerCase();
+      if (rowTextLower.includes('học phần bắt buộc')) {
+        inCompulsorySection = true;
+        continue;
+      }
+      if (rowTextLower.includes('học phần tự chọn')) {
+        inCompulsorySection = false;
+        continue;
+      }
+
+      // Bỏ qua các môn nằm trong mục HỌC PHẦN BẮT BUỘC (Chương trình khung)
+      if (inCompulsorySection) continue;
+
+      // Bỏ qua các môn có dấu tích ở cột "Bắt buộc" trên bảng Môn học chờ đăng ký
+      if (compulsoryColIndex !== -1 && tr.cells && tr.cells[compulsoryColIndex]) {
+        const compCell = tr.cells[compulsoryColIndex];
+        const compText = (compCell.textContent || '').trim().toLowerCase();
+        const hasCompIcon = compCell.querySelector('i, img, svg, span[class*="check"], span[class*="ok"], input:checked');
+        if (hasCompIcon || compText === 'x' || compText === '✓' || compText === '✔' || compText === 'có') {
+          continue;
+        }
+      }
+
       const hasInput = tr.querySelector('input[type="radio"], input[type="checkbox"]');
-      if (hasInput || /\b\d{8,14}\b/.test(text)) {
+      const codeObj = extractCodeFromRow(tr);
+      if (hasInput || codeObj) {
         rows.push(tr);
       }
     }
@@ -304,14 +409,22 @@
     return rows;
   }
 
-  // Trích xuất thông tin hàng (Chỉ gọi khi khớp target code)
+  // Trích xuất thông tin hàng (Chỉ đọc Sĩ số / Đã ĐK ở các cột sau Mã LHP để không nhầm với cột STT)
   function parseRowInfo(tr) {
-    const cells = tr.querySelectorAll('td');
-    if (!cells.length) return null;
+    const cells = tr.cells;
+    if (!cells || !cells.length) return null;
 
-    const rowText = tr.textContent || '';
-    const codeMatch = rowText.match(/\b\d{8,14}\b/);
-    const code = codeMatch ? codeMatch[0] : '';
+    const codeObj = extractCodeFromRow(tr);
+    const code = codeObj ? codeObj.code : '';
+    const codeCell = codeObj ? codeObj.cell : (cells[1] || cells[0]);
+    const codeCellIndex = codeObj ? codeObj.cellIndex : 1;
+
+    const cellTexts = [];
+    for (let i = 0; i < cells.length; i++) {
+      cellTexts.push((cells[i].textContent || '').trim());
+    }
+    const rowText = cellTexts.join(' ');
+    const statusText = cells.length >= 5 ? cellTexts[cells.length - 1] : '';
 
     const selectorInput = tr.querySelector('input[type="radio"], input[type="checkbox"]');
 
@@ -319,53 +432,74 @@
     let max = -1;
     let remaining = -1;
 
-    const fractionMatch = rowText.match(/(\d+)\s*[\/|\\]\s*(\d+)/);
-    if (fractionMatch) {
-      enrolled = parseInt(fractionMatch[1], 10);
-      max = parseInt(fractionMatch[2], 10);
-      remaining = max - enrolled;
-    } else {
-      for (let i = 0; i < cells.length; i++) {
-        const t = cells[i].textContent.trim();
-        if (/^\d{1,3}$/.test(t)) {
-          const num = parseInt(t, 10);
-          if (num >= 20 && num <= 150 && max === -1) {
-            max = num;
-          } else if (num >= 0 && num <= 150 && enrolled === -1) {
-            enrolled = num;
+    // Chỉ tính Sĩ số / Đã ĐK cho dòng Lớp học phần (Mã LHP >= 11 số)
+    if (!code || code.length >= 11) {
+      const fractionMatch = rowText.match(/(\d+)\s*[\/|\\]\s*(\d+)/);
+      if (fractionMatch) {
+        enrolled = parseInt(fractionMatch[1], 10);
+        max = parseInt(fractionMatch[2], 10);
+        remaining = max - enrolled;
+      } else {
+        // Gom tất cả các ô chứa số nguyên nằm SAU cột Mã LHP (bỏ qua cột STT ở đầu dòng!)
+        const numericCols = [];
+        for (let i = codeCellIndex + 1; i < cells.length; i++) {
+          const t = cellTexts[i];
+          if (/^\d{1,3}$/.test(t)) {
+            numericCols.push(parseInt(t, 10));
           }
         }
-      }
-      if (max !== -1 && enrolled !== -1) {
-        remaining = max - enrolled;
+        // Trên bảng LỚP HỌC PHẦN CHỜ ĐĂNG KÝ của IUH: 2 cột số cuối cùng luôn là [Sĩ số tối đa, Đã đăng ký]
+        if (numericCols.length >= 2) {
+          max = numericCols[numericCols.length - 2];
+          enrolled = numericCols[numericCols.length - 1];
+          remaining = max - enrolled;
+        }
       }
     }
 
     return {
       tr: tr,
       code: code,
+      codeCell: codeCell,
       input: selectorInput,
       enrolled: enrolled,
       max: max,
       remaining: remaining,
+      statusText: statusText,
       text: rowText
     };
   }
 
-  // Tìm nút Đăng Ký trên trang IUH
+  // Tìm nút Đăng Ký trên trang IUH (Loại trừ nút trong HUD và menu điều hướng)
   function findRegisterButton() {
     const specific = document.querySelector(
-      '#btnDangKy, #btnLuu, #btnSubmit, .btn-dangky, .btnDangKy, button[name*="DangKy"], input[name*="DangKy"]'
+      '#btnDangKy, #btnDangKyHocPhan, #btnLuu, #btnSubmit, .btn-dangky, .btnDangKy, button[name*="DangKy"], input[name*="DangKy"], button[onclick*="DangKy"], button[onclick*="dangKy"], input[onclick*="DangKy"], a[onclick*="DangKy"]'
     );
-    if (specific && isVisible(specific)) return specific;
+    if (specific && isVisible(specific) && !specific.disabled) return specific;
 
-    const candidates = document.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn');
+    const candidates = document.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn, a[class*="btn"]');
 
     for (let i = 0; i < candidates.length; i++) {
       const el = candidates[i];
+      if (el.closest('#iuh-dkhp-hud') || el.classList.contains('iuh-inline-add-btn')) continue;
+      if (el.disabled) continue;
+
+      // Bỏ qua các thẻ <a> điều hướng chuyển trang thông thường
+      if (el.tagName === 'A') {
+        const href = (el.getAttribute('href') || '').trim();
+        if (href && href !== '#' && !href.startsWith('javascript:')) continue;
+      }
+
       const val = (el.textContent || el.value || '').trim().toLowerCase();
       if (
-        (val.includes('đăng ký') || val.includes('dang ky') || val.includes('lưu đăng ký') || val.includes('lưu vào')) &&
+        (val === 'đăng ký' ||
+          val === 'đăng kí' ||
+          val.includes('đăng ký học phần') ||
+          val.includes('lưu đăng ký') ||
+          val.includes('thực hiện đăng ký') ||
+          val.includes('xác nhận đăng ký') ||
+          val.includes('lưu vào') ||
+          val.includes('đăng ký ngay')) &&
         isVisible(el)
       ) {
         return el;
@@ -384,7 +518,9 @@
       return true;
     }
 
-    const modalConfirm = document.querySelector('.modal.in .btn-primary, .modal.show .btn-primary, .modal .btn-success');
+    const modalConfirm = document.querySelector(
+      '.modal.in .btn-primary, .modal.show .btn-primary, .modal .btn-success, .bootbox .btn-primary, .bootbox .btn-success, .ui-dialog-buttonset button:first-child'
+    );
     if (modalConfirm && isVisible(modalConfirm)) {
       addLog('⚡ Tự động xác nhận popup modal...', 'warn');
       modalConfirm.click();
@@ -395,7 +531,7 @@
   }
 
   // Giám sát popup xác nhận tức thì (kiểm tra mỗi 20ms thay vì đợi 250ms)
-  function watchAndAutoConfirm(maxWaitMs = 1500) {
+  function watchAndAutoConfirm(maxWaitMs = 2000) {
     const start = Date.now();
     const interval = setInterval(() => {
       const confirmed = handleConfirmDialog();
@@ -410,89 +546,242 @@
     return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
   }
 
-  // Click mô phỏng người dùng thật tốc độ cao
+  // Click mô phỏng người dùng thật tốc độ cao (đảm bảo input radio/checkbox cập nhật checked trước khi nổ onclick/onchange)
   function simulateRealClick(element) {
     if (!element) return;
-    element.focus();
+    try { element.focus(); } catch (e) {}
+    if (element.tagName === 'INPUT' && (element.type === 'radio' || element.type === 'checkbox')) {
+      element.click();
+      if (!element.checked) {
+        element.checked = true;
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return;
+    }
     ['mousedown', 'mouseup', 'click'].forEach((type) => {
       element.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
     });
-    if (element.tagName === 'INPUT' && (element.type === 'radio' || element.type === 'checkbox')) {
-      element.checked = true;
-      element.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Kích hoạt chọn cả hàng (bấm cả radio/checkbox, ô mã và thẻ tr để tương thích mọi bảng của IUH)
+  function selectTableRow(rowInfo) {
+    if (!rowInfo) return;
+    if (rowInfo.input && !rowInfo.input.checked) {
+      simulateRealClick(rowInfo.input);
+    }
+    if (rowInfo.codeCell) {
+      simulateRealClick(rowInfo.codeCell);
+    }
+    if (rowInfo.tr) {
+      simulateRealClick(rowInfo.tr);
     }
   }
 
   // ==========================================
-  // THỰC HIỆN ĐĂNG KÝ HỌC PHẦN (ZERO-DELAY PIPELINE)
+  // THỰC HIỆN ĐĂNG KÝ HỌC PHẦN TỰ ĐỘNG A-Z (MULTI-STAGE ZERO-DELAY)
   // ==========================================
-  function executeRegistration(targetItem, rowInfo) {
-    addLog(`⚡ [Fast-Track] Chọn lớp [${targetItem.code}]...`, 'warn');
-    state.retryCount = 0;
+  let isRegisteringLock = false;
 
-    // 1. Tick chọn radio/row ngay lập tức
-    if (rowInfo.input) {
-      simulateRealClick(rowInfo.input);
-    } else {
-      simulateRealClick(rowInfo.tr);
-    }
+  // Chọn môn học (10 số) -> Tự động tích "Không trùng lịch" -> Chờ bảng Lớp HP (12 số) -> Chọn lớp "Chờ sinh viên đăng ký"
+  function waitAndSelectOpenClassForSubject(subjectCode, targetItem) {
+    ensureNoScheduleConflictChecked();
+    addLog(`⏳ Đang lọc lớp KHÔNG TRÙNG LỊCH & tìm lớp "Chờ sinh viên đăng ký" cho môn [${subjectCode}]...`, 'info');
 
-    // 2. Chế độ Siêu Tốc (Zero-Delay): chỉ trễ 25ms thay vì 550ms
-    const delay = state.settings.zeroDelayMode ? 25 : 150;
+    let attempts = 0;
+    const waitClassInterval = setInterval(() => {
+      attempts++;
+      // Luôn đảm bảo ô "HIỂN THỊ LỚP HỌC PHẦN KHÔNG TRÙNG LỊCH" được tích
+      if ( ensureNoScheduleConflictChecked() ) {
+        // Nếu vừa mới tích ô Không trùng lịch, đợi nhịp sau (120ms) để bảng kịp lọc lại các lớp không trùng lịch
+        return;
+      }
 
-    setTimeout(() => {
-      selectPracticeGroupIfAny(targetItem);
+      const allRows = findClassRows();
+      let hasAnyClassOfSubject = false;
 
-      if (state.settings.autoRegister) {
-        const regBtn = findRegisterButton();
-        if (regBtn) {
-          addLog(`⚡ [Zero-Delay] Bấm Đăng Ký (${regBtn.textContent || regBtn.value || 'Nút ĐK'})...`, 'warn');
-          simulateRealClick(regBtn);
-          // Kích hoạt ngay bộ xác nhận popup tức thời
-          watchAndAutoConfirm(2000);
-        } else {
-          addLog('Không tìm thấy nút "Đăng Ký", bạn hãy bấm đăng ký thủ công trên màn hình!', 'error');
+      for (let i = 0; i < allRows.length; i++) {
+        const info = parseRowInfo(allRows[i]);
+        if (info && info.code && info.code.length >= 11 && info.code.startsWith(subjectCode)) {
+          hasAnyClassOfSubject = true;
+          if (isRowOpenForReg(info)) {
+            clearInterval(waitClassInterval);
+            addLog(`🎯 Tìm thấy lớp [${info.code}] (Chờ SV đăng ký - Không trùng lịch)! Tự động chọn & ĐK...`, 'success');
+            selectTableRow(info);
+            triggerPracticeAndSubmit(targetItem || { code: info.code, practiceGroup: '' });
+            return;
+          }
         }
       }
-    }, delay);
+
+      if (attempts >= 25 || (hasAnyClassOfSubject && attempts >= 8)) {
+        clearInterval(waitClassInterval);
+        if (hasAnyClassOfSubject) {
+          addLog(`⚠️ Môn [${subjectCode}] hiện không có lớp nào ở trạng thái "Chờ sinh viên đăng ký" (hoặc đều Đã khóa / Đang lên kế hoạch / Trùng lịch).`, 'warn');
+        }
+      }
+    }, 120);
+  }
+
+  function executeRegistration(targetItem, rowInfo) {
+    if (isRegisteringLock) return;
+    isRegisteringLock = true;
+    setTimeout(() => { isRegisteringLock = false; }, 1200);
+
+    // Luôn đảm bảo ô "HIỂN THỊ LỚP HỌC PHẦN KHÔNG TRÙNG LỊCH" được bật
+    ensureNoScheduleConflictChecked();
+
+    const codeLabel = (rowInfo && rowInfo.code) || (targetItem && targetItem.code) || 'Lớp đã chọn';
+    state.retryCount = 0;
+
+    // 1. Nếu dòng truyền vào là Mã học phần 10 số (bảng Môn học chờ đăng ký ở trên)
+    const isSubjectRow = rowInfo && rowInfo.code && rowInfo.code.length === 10;
+    if (isSubjectRow) {
+      addLog(`⚡ [Auto-Register] Chọn môn [${rowInfo.code}]...`, 'warn');
+      selectTableRow(rowInfo);
+      waitAndSelectOpenClassForSubject(rowInfo.code, targetItem);
+      return;
+    }
+
+    // 2. Nếu dòng truyền vào là Lớp học phần 12 số: kiểm tra chắc chắn trạng thái "Chờ sinh viên đăng ký"
+    if (rowInfo && !isRowOpenForReg(rowInfo)) {
+      addLog(`⛔ Lớp [${codeLabel}] có trạng thái "${rowInfo.statusText || 'Đã khóa/Đang lên KH'}" -> Bỏ qua, không đăng ký!`, 'warn');
+      return;
+    }
+
+    addLog(`⚡ [Auto-Register] Đang chọn lớp [${codeLabel}] và tự động đăng ký...`, 'warn');
+    selectTableRow(rowInfo);
+
+    // 3. Tự động chọn nhóm Thực hành (nếu có) và bấm nút Đăng Ký ngay khi sẵn sàng
+    triggerPracticeAndSubmit(targetItem);
+  }
+
+  // Quét liên hoàn để chọn nhóm TH và bấm nút Đăng ký ngay khi AJAX của trường tải xong
+  function triggerPracticeAndSubmit(targetItem) {
+    const checkpoints = state.settings.zeroDelayMode ? [25, 120, 300, 600] : [150, 350, 700];
+    let clickedRegister = false;
+
+    checkpoints.forEach((delayMs, idx) => {
+      setTimeout(() => {
+        if (clickedRegister) return;
+
+        selectPracticeGroupIfAny(targetItem);
+
+        if (state.settings.autoRegister) {
+          const regBtn = findRegisterButton();
+          if (regBtn) {
+            clickedRegister = true;
+            const btnLabel = (regBtn.textContent || regBtn.value || 'Nút ĐK').trim();
+            addLog(`⚡ [Auto-Register] Tự động bấm "${btnLabel}"!`, 'success');
+            simulateRealClick(regBtn);
+            watchAndAutoConfirm(2500);
+          } else if (idx === checkpoints.length - 1) {
+            addLog('⚠️ Chưa thấy nút "Đăng Ký" trên trang (Hãy đảm bảo bạn đang ở mục Đăng Ký Học Phần).', 'warn');
+          }
+        }
+      }, delayMs);
+    });
   }
 
   // Chọn nhóm thực hành nếu môn có chia ca TH
   function selectPracticeGroupIfAny(targetItem) {
     const practiceRadios = document.querySelectorAll(
-      '#divNhomThucHanh input[type="radio"], .nhom-thuc-hanh input[type="radio"], table input[name*="ThucHanh"]'
+      '#divNhomThucHanh input[type="radio"], .nhom-thuc-hanh input[type="radio"], table input[name*="ThucHanh"], table input[name*="ChiTiet"], #tbChiTietLopHocPhan input[type="radio"]'
     );
 
-    if (!practiceRadios.length) return;
+    if (practiceRadios.length) {
+      let selectedRadio = null;
 
-    let selectedRadio = null;
+      if (targetItem && targetItem.practiceGroup) {
+        for (let i = 0; i < practiceRadios.length; i++) {
+          const rad = practiceRadios[i];
+          const parentText = (rad.closest('tr') || rad.parentElement || {}).textContent || '';
+          if (parentText.includes(targetItem.practiceGroup)) {
+            selectedRadio = rad;
+            break;
+          }
+        }
+      }
 
-    if (targetItem.practiceGroup) {
-      for (let i = 0; i < practiceRadios.length; i++) {
-        const rad = practiceRadios[i];
-        const parentText = (rad.closest('tr') || rad.parentElement || {}).textContent || '';
-        if (parentText.includes(targetItem.practiceGroup)) {
-          selectedRadio = rad;
+      if (!selectedRadio && state.settings.autoSelectPractice) {
+        for (let i = 0; i < practiceRadios.length; i++) {
+          const rad = practiceRadios[i];
+          if (!rad.disabled) {
+            selectedRadio = rad;
+            break;
+          }
+        }
+      }
+
+      if (selectedRadio && !selectedRadio.checked) {
+        const pText = (selectedRadio.closest('tr') || selectedRadio.parentElement || {}).textContent || 'Mặc định';
+        addLog(`Tự động chọn nhóm thực hành: ${pText.replace(/\s+/g, ' ').slice(0, 35)}`, 'info');
+        simulateRealClick(selectedRadio);
+        const parentTr = selectedRadio.closest('tr');
+        if (parentTr) simulateRealClick(parentTr);
+      }
+      return;
+    }
+
+    // Trường hợp bảng Chi tiết nhóm TH của IUH chọn bằng cách click vào dòng <tr> (không dùng input radio)
+    const detailRows = document.querySelectorAll(
+      '#divNhomThucHanh tbody tr, #tbChiTietLopHocPhan tbody tr, .nhom-thuc-hanh tbody tr'
+    );
+    for (let i = 0; i < detailRows.length; i++) {
+      const tr = detailRows[i];
+      if (!tr.classList.contains('active') && !tr.classList.contains('selected')) {
+        const txt = (tr.textContent || '').trim();
+        if (txt && !txt.includes('Hết chỗ')) {
+          addLog(`Tự động chọn dòng thực hành: ${txt.replace(/\s+/g, ' ').slice(0, 35)}`, 'info');
+          simulateRealClick(tr);
           break;
         }
       }
     }
+  }
 
-    if (!selectedRadio && state.settings.autoSelectPractice) {
-      for (let i = 0; i < practiceRadios.length; i++) {
-        const rad = practiceRadios[i];
-        if (!rad.disabled) {
-          selectedRadio = rad;
-          break;
-        }
-      }
+  // Kiểm tra dòng Lớp học phần có đủ điều kiện đăng ký không:
+  // BẮT BUỘC: Trạng thái là "Chờ sinh viên đăng ký" (không chọn "Đã khóa" / "Đang lên kế hoạch") VÀ còn chỗ (remaining > 0)
+  function isRowOpenForReg(rowInfo) {
+    if (!rowInfo) return false;
+
+    // Nếu là dòng Môn học (10 số) ở bảng trên thì không phải dòng Lớp học phần để bấm ĐK trực tiếp
+    if (rowInfo.code && rowInfo.code.length === 10) return false;
+
+    const statusLower = (rowInfo.statusText || '').toLowerCase();
+    const rowLower = (rowInfo.text || '').toLowerCase();
+
+    // 1. Loại bỏ ngay các trạng thái không thể đăng ký của IUH
+    if (
+      statusLower.includes('đã khóa') ||
+      statusLower.includes('đang lên kế hoạch') ||
+      statusLower.includes('hết chỗ') ||
+      statusLower.includes('đã hủy') ||
+      statusLower.includes('ngưng') ||
+      rowLower.includes('đã khóa') ||
+      rowLower.includes('đang lên kế hoạch') ||
+      rowLower.includes('hết chỗ')
+    ) {
+      return false;
     }
 
-    if (selectedRadio) {
-      const pText = (selectedRadio.closest('tr') || selectedRadio.parentElement || {}).textContent || 'Mặc định';
-      addLog(`Tự động chọn nhóm thực hành: ${pText.replace(/\s+/g, ' ').slice(0, 30)}`, 'info');
-      simulateRealClick(selectedRadio);
+    // 2. Nếu có cột Trạng thái trên trang IUH, chỉ nhận "Chờ sinh viên đăng ký" (hoặc "Chấp nhận mở lớp" / "Còn chỗ" trên simulator)
+    if (statusLower) {
+      const isValidStatus =
+        statusLower.includes('chờ sinh viên đăng ký') ||
+        statusLower.includes('chờ sinh viên đăng kí') ||
+        statusLower.includes('chấp nhận mở lớp') ||
+        statusLower.includes('còn chỗ') ||
+        statusLower.includes('đang mở');
+      if (!isValidStatus) return false;
     }
+
+    // 3. Kiểm tra sĩ số còn trống (Đã đăng ký < Sĩ số tối đa)
+    if (rowInfo.remaining === 0 || (rowInfo.max > 0 && rowInfo.enrolled >= rowInfo.max)) {
+      return false;
+    }
+
+    if (rowInfo.input && rowInfo.input.disabled) return false;
+    return true;
   }
 
   // ==========================================
@@ -501,50 +790,80 @@
   function runHuntCycle() {
     if (!state.isRunning) return;
 
+    // Luôn đảm bảo ô "HIỂN THỊ LỚP HỌC PHẦN KHÔNG TRÙNG LỊCH" được tích
+    ensureNoScheduleConflictChecked();
+
     const rows = findClassRows();
 
     for (let t = 0; t < state.targets.length; t++) {
       const target = state.targets[t];
       if (target.status === 'success' && state.settings.stopOnSuccess) continue;
 
-      let foundRow = null;
-      // Dùng textContent kiểm tra chuỗi trực tiếp, chỉ parse khi tìm thấy mã
+      let subjectRow = null;
+      let firstClassRow = null;
+      let openClassRow = null;
+
+      // Duyệt qua các hàng khớp mã (hỗ trợ cả Mã LHP 12 số lẫn Mã HP 10 số)
       for (let i = 0; i < rows.length; i++) {
         const tr = rows[i];
         if (tr.textContent.includes(target.code)) {
-          foundRow = parseRowInfo(tr);
-          break;
+          const candidate = parseRowInfo(tr);
+          if (!candidate) continue;
+
+          if (candidate.code && candidate.code.length === 10) {
+            subjectRow = candidate;
+          } else {
+            if (!firstClassRow) firstClassRow = candidate;
+            if (isRowOpenForReg(candidate)) {
+              openClassRow = candidate;
+              break;
+            }
+          }
         }
       }
+
+      // Nếu người dùng săn theo Mã học phần (10 số) mà bảng Lớp học phần (12 số) bên dưới chưa được mở ra -> Click mở môn học trước
+      if (!firstClassRow && !openClassRow && subjectRow) {
+        if (!subjectRow.input || !subjectRow.input.checked) {
+          addLog(`📂 Tự động chọn môn [${subjectRow.code}] để tải danh sách lớp học phần...`, 'info');
+          selectTableRow(subjectRow);
+          ensureNoScheduleConflictChecked();
+        }
+        updateTargetStatusInList(target.code, 'Đang tải danh sách lớp...');
+        continue;
+      }
+
+      const foundRow = openClassRow || firstClassRow;
 
       if (foundRow) {
         let statusStr = '';
         if (foundRow.max !== -1 && foundRow.enrolled !== -1) {
           statusStr = `${foundRow.enrolled}/${foundRow.max}`;
-        } else {
+        }
+        if (foundRow.statusText) {
+          statusStr = statusStr ? `${statusStr} - ${foundRow.statusText}` : foundRow.statusText;
+        } else if (!statusStr) {
           statusStr = 'Đang mở';
         }
 
-        const hasSlot = foundRow.remaining > 0 || (foundRow.remaining === -1 && foundRow.input && !foundRow.input.disabled);
-
-        if (hasSlot) {
+        if (openClassRow) {
           target.status = 'open';
-          addLog(`🔥 PHÁT HIỆN LỚP [${target.code}] CÒN CHỖ (${statusStr})! TIẾN HÀNH ĐĂNG KÝ...`, 'success');
+          addLog(`🔥 PHÁT HIỆN LỚP [${openClassRow.code}] (${statusStr})! TỰ ĐỘNG ĐĂNG KÝ...`, 'success');
           playSoundAlert('slot_found');
 
           chrome.runtime.sendMessage({
             action: 'NOTIFY_DESKTOP',
-            title: '🔥 PHÁT HIỆN CHỖ TRỐNG!',
-            body: `Lớp ${target.code} đang còn chỗ (${statusStr}). Đang tiến hành đăng ký!`
+            title: '🔥 PHÁT HIỆN LỚP CHỜ SV ĐĂNG KÝ!',
+            body: `Lớp ${openClassRow.code} (${statusStr}). Đang tự động đăng ký!`
           });
 
-          executeRegistration(target, foundRow);
+          executeRegistration(target, openClassRow);
           target.status = 'attempting';
           updateTargetUI();
           break;
         } else {
           target.status = 'full';
-          updateTargetStatusInList(target.code, `Đầy (${statusStr})`);
+          updateTargetStatusInList(target.code, `Chưa mở (${statusStr})`);
         }
       } else {
         updateTargetStatusInList(target.code, 'Chưa thấy trên bảng');
@@ -588,7 +907,7 @@
   }
 
   // ==========================================
-  // BỘ LỌC BẢNG & TÔ MÀU (CHỈ CHẠY KHI CẦN THIẾT)
+  // BỘ LỌC BẢNG & TÔ MÀU (CHỈ TÔ XANH LỚP "CHỜ SINH VIÊN ĐĂNG KÝ" & CÒN CHỖ)
   // ==========================================
   function applyTableFilters() {
     const rows = findClassRows();
@@ -598,15 +917,23 @@
       const info = parseRowInfo(tr);
       if (!info) continue;
 
-      const isTarget = state.targets.some((t) => t.code === info.code);
+      const isTarget = state.targets.some((t) => info.code && (t.code === info.code || info.code.startsWith(t.code)));
       if (isTarget) {
         tr.classList.add('iuh-highlight-target');
       } else {
         tr.classList.remove('iuh-highlight-target');
       }
 
-      const isFull = info.remaining === 0;
-      if (isFull) {
+      // Bảng Môn học (10 số) ở trên: không tô màu xanh/mờ theo sĩ số
+      if (info.code && info.code.length === 10) {
+        tr.classList.remove('iuh-row-full', 'iuh-row-hidden', 'iuh-highlight-open');
+        continue;
+      }
+
+      // Bảng Lớp học phần (12 số) ở dưới: chỉ coi là mở khi Trạng thái = "Chờ sinh viên đăng ký" và còn chỗ
+      const canRegister = isRowOpenForReg(info);
+      if (!canRegister) {
+        tr.classList.remove('iuh-highlight-open');
         tr.classList.add('iuh-row-full');
         if (state.settings.hideFullClasses) {
           tr.classList.add('iuh-row-hidden');
@@ -615,7 +942,7 @@
         }
       } else {
         tr.classList.remove('iuh-row-full', 'iuh-row-hidden');
-        if (state.settings.highlightOpenClasses && info.remaining > 0) {
+        if (state.settings.highlightOpenClasses) {
           tr.classList.add('iuh-highlight-open');
         } else {
           tr.classList.remove('iuh-highlight-open');
@@ -624,7 +951,7 @@
     }
   }
 
-  // Gắn nút "+ Săn lớp" vào từng dòng trong bảng môn học của trường
+  // Gắn nút "+ Săn lớp" vào từng dòng (Chỉ gắn cho môn tự chọn & các lớp "Chờ sinh viên đăng ký")
   function injectInlineButtons() {
     const rows = findClassRows();
     let count = 0;
@@ -636,7 +963,15 @@
       const info = parseRowInfo(tr);
       if (!info || !info.code) continue;
 
-      const targetCell = tr.cells[1] || tr.cells[0];
+      // Ở bảng Lớp học phần (12 số), bỏ qua không gắn nút Săn cho các lớp "Đã khóa" hoặc "Đang lên kế hoạch"
+      if (info.code.length >= 11 && info.statusText) {
+        const st = info.statusText.toLowerCase();
+        if (st.includes('đã khóa') || st.includes('đang lên kế hoạch') || st.includes('đã hủy')) {
+          continue;
+        }
+      }
+
+      const targetCell = info.codeCell || tr.cells[1] || tr.cells[0];
       if (!targetCell) continue;
 
       const btn = document.createElement('button');
@@ -650,7 +985,13 @@
         e.stopPropagation();
         addTargetCode(info.code);
         btn.classList.add('added');
-        btn.innerHTML = '✓ Đã thêm';
+        btn.innerHTML = '✓ Đang săn';
+        // Tự động bật săn và tiến hành chọn + đăng ký ngay lập tức!
+        if (!state.isRunning) {
+          startHunting();
+        }
+        const targetObj = state.targets.find((t) => t.code === info.code) || { code: info.code, practiceGroup: '' };
+        executeRegistration(targetObj, info);
       });
 
       targetCell.appendChild(btn);
@@ -658,7 +999,7 @@
     }
 
     if (count > 0) {
-      addLog(`Đã gắn nút [+ Săn] vào ${count} lớp học phần trên bảng`, 'info');
+      addLog(`Đã gắn nút [+ Săn] vào ${count} dòng hợp lệ trên bảng`, 'info');
     }
   }
 
@@ -828,8 +1169,9 @@
             <label class="iuh-setting-label">
               <span>Tốc độ quét:</span>
             </label>
-            <select id="iuh-select-speed" class="iuh-input" style="width: 120px; padding: 4px;">
+            <select id="iuh-select-speed" class="iuh-input" style="width: 140px; padding: 4px 8px;">
               <option value="250">Tối đa (250ms)</option>
+              <option value="300">Cực nhanh (300ms)</option>
               <option value="500" selected>Mượt mà (500ms)</option>
               <option value="800">Chuẩn (800ms)</option>
               <option value="1500">An toàn (1.5s)</option>
@@ -1141,7 +1483,10 @@
     });
 
     const selectSpeed = document.getElementById('iuh-select-speed');
-    selectSpeed.value = String(state.settings.intervalMs);
+    selectSpeed.value = String(state.settings.intervalMs || 500);
+    if (!selectSpeed.value) {
+      selectSpeed.value = '500';
+    }
     selectSpeed.addEventListener('change', (e) => {
       state.settings.intervalMs = parseInt(e.target.value, 10);
       saveConfig();
@@ -1467,6 +1812,45 @@
     }, true);
   }
 
+  // Tự động lọc Không trùng lịch + chọn lớp "Chờ sinh viên đăng ký" + bấm Đăng Ký khi người dùng click chọn môn/lớp
+  function setupManualSelectAutoRegister() {
+    document.addEventListener('click', (e) => {
+      if (!state.settings.autoRegister) return;
+      if (!e.isTrusted) return; // Chỉ bắt click thật của người dùng (tránh lặp với click mô phỏng của tool)
+      const targetEl = e.target;
+      if (!targetEl || !targetEl.closest) return;
+      if (targetEl.closest('#iuh-dkhp-hud') || targetEl.closest('#iuh-dkhp-hud-minimized')) return;
+      if (targetEl.classList.contains('iuh-inline-add-btn')) return;
+      if (targetEl.tagName === 'BUTTON' || targetEl.tagName === 'A') return;
+      // Không can thiệp nếu người dùng đang tự bấm vào chính ô checkbox Không trùng lịch
+      if (targetEl.tagName === 'INPUT' && targetEl.type === 'checkbox') return;
+
+      const tr = targetEl.closest('table tr');
+      if (!tr || (tr.firstElementChild && tr.firstElementChild.tagName === 'TH')) return;
+
+      const info = parseRowInfo(tr);
+      if (!info) return;
+
+      // Trường hợp 1: Người dùng vừa click chọn 1 Môn học (Mã HP 10 số) ở bảng trên
+      if (info.code && info.code.length === 10) {
+        addLog(`📂 Bạn vừa chọn môn [${info.code}] -> Tự động tích "Không trùng lịch" & chọn lớp "Chờ SV đăng ký"...`, 'info');
+        waitAndSelectOpenClassForSubject(info.code, { code: info.code, practiceGroup: '' });
+        return;
+      }
+
+      // Trường hợp 2: Người dùng vừa click chọn dòng Lớp học phần (Mã LHP 12 số) ở bảng dưới
+      if ((info.code && info.code.length >= 11) || info.input) {
+        ensureNoScheduleConflictChecked();
+        if (isRowOpenForReg(info)) {
+          addLog(`⚡ Bạn vừa chọn lớp [${info.code || 'LHP'}] (Chờ SV đăng ký)! Tự động chọn nhóm TH & bấm Đăng Ký...`, 'warn');
+          triggerPracticeAndSubmit({ code: info.code || '', practiceGroup: '' });
+        } else {
+          addLog(`⛔ Lớp [${info.code || 'LHP'}] có trạng thái "${info.statusText || 'Đã khóa/Đang lên KH'}" -> Không thể đăng ký!`, 'warn');
+        }
+      }
+    }, true);
+  }
+
   // ==========================================
   // KHỞI ĐỘNG EXTENSION TRÊN TRANG (TỐI ƯU MUTATION)
   // ==========================================
@@ -1474,6 +1858,7 @@
     loadConfig(() => {
       createHUD();
       setupKeepAlive();
+      setupManualSelectAutoRegister();
       addLog('Đã khởi tạo IUH DKHP Pro Ultra Turbo sẵn sàng!', 'success');
 
       // Khởi chạy đo ping định kỳ mỗi 5s
@@ -1483,6 +1868,7 @@
       }, 5000);
 
       setTimeout(() => {
+        ensureNoScheduleConflictChecked();
         injectInlineButtons();
         applyTableFilters();
       }, 800);
@@ -1505,6 +1891,7 @@
         if (hasTableChanges) {
           clearTimeout(mutationDebounceTimer);
           mutationDebounceTimer = setTimeout(() => {
+            ensureNoScheduleConflictChecked();
             injectInlineButtons();
             applyTableFilters();
           }, 300);
