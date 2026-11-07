@@ -43,14 +43,14 @@ async function setTurboNetworkMode(enabled) {
               resourceTypes: ['image']
             }
           },
-          // Rule 3: Chặn toàn bộ Google Analytics, Facebook Pixel, Hotjar, Clarity, Ads
+          // Rule 3: Chặn Google Analytics (chỉ chặn đúng domain google-analytics, tuyệt đối không đụng tới script/xhr của IUH)
           {
             id: TURBO_RULE_BLOCK_TRACKERS_ID,
             priority: 2,
             action: { type: 'block' },
             condition: {
-              urlFilter: '*analytics*|*gtag*|*googletagmanager*|*clarity.ms*|*hotjar*|*connect.facebook.net*|*doubleclick*',
-              resourceTypes: ['script', 'xmlhttprequest', 'sub_frame', 'ping']
+              urlFilter: '||google-analytics.com',
+              resourceTypes: ['script', 'ping']
             }
           },
           // Rule 4: Chặn các beacon ping ngầm gây nghẽn socket

@@ -261,24 +261,56 @@
   }
 
   // ==========================================
-  // SOFT-REFRESH BẢNG LỚP HỌC PHẦN (KHÔNG F5)
+  // MỞ KHÓA & NẠP LẠI BẢNG HỌC PHẦN (KHI BỊ ẨN / TRỐNG)
   // ==========================================
   function softRefreshTable() {
-    addLog('🔄 [Soft-Refresh] Đang yêu cầu máy chủ làm mới bảng lớp học phần...', 'info');
-    const searchBtn = document.querySelector('#btnTimKiem, #btnSearch, .btnTimKiem, button[onclick*="TimKiem"], input[value*="Tìm kiếm"]');
-    if (searchBtn && isVisible(searchBtn)) {
-      simulateRealClick(searchBtn);
-      addLog('Đã kích hoạt nút tìm kiếm trên trang để load dữ liệu mới!', 'success');
-    } else {
-      window.postMessage({
-        target: 'IUH_DKHP_INJECTED_INVOKE',
-        funcName: 'loadDanhSachLopHocPhan',
-        args: []
-      }, '*');
-      applyTableFilters();
-      injectInlineButtons();
-      addLog('Đã quét lại cấu trúc bảng học phần!', 'info');
+    addLog('🔓 [Mở Khóa & Làm Mới] Đang khôi phục hiển thị và nạp lại danh sách môn học...', 'info');
+
+    // 1. Gỡ bỏ toàn bộ class ẩn hoặc style display:none trên các bảng và dòng học phần
+    document.querySelectorAll('table, tbody, tr.iuh-row-hidden, tr.iuh-row-full, .hidden, .d-none').forEach((el) => {
+      if (el.closest('#iuh-dkhp-hud')) return;
+      el.classList.remove('iuh-row-hidden', 'iuh-row-full', 'hidden', 'd-none');
+      if (el.style && el.style.display === 'none' && (el.tagName === 'TR' || el.tagName === 'TBODY' || el.tagName === 'TABLE')) {
+        el.style.display = '';
+      }
+    });
+
+    // 2. Mở khóa các nút/ô chọn bị disabled trên trang ĐKHP
+    document.querySelectorAll('select[disabled], input[type="radio"][disabled], button[disabled], input[type="button"][disabled]').forEach((el) => {
+      if (el.closest('#iuh-dkhp-hud')) return;
+      el.disabled = false;
+      el.removeAttribute('disabled');
+    });
+
+    // 3. Kích hoạt sự kiện change trên ô chọn "Đợt đăng ký" và radio "HỌC MỚI / HỌC LẠI / HỌC CẢI THIỆN" để web trường tải lại bảng môn
+    const selects = document.querySelectorAll('select');
+    for (let i = 0; i < selects.length; i++) {
+      const sel = selects[i];
+      if (sel.closest('#iuh-dkhp-hud')) continue;
+      if (sel.options && sel.options.length > 0 && (sel.textContent || '').includes('HK')) {
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        break;
+      }
     }
+
+    const checkedRadio = document.querySelector('input[type="radio"]:checked');
+    if (checkedRadio && !checkedRadio.closest('#iuh-dkhp-hud')) {
+      checkedRadio.dispatchEvent(new Event('change', { bubbles: true }));
+      checkedRadio.click();
+    }
+
+    // 4. Gửi lệnh xuống Main World (injected.js) để kích hoạt jQuery trigger('change') và hàm load gốc của IUH
+    window.postMessage({
+      target: 'IUH_DKHP_INJECTED_INVOKE',
+      funcName: '__RELOAD_DKHP_TABLES__',
+      args: []
+    }, '*');
+
+    setTimeout(() => {
+      injectInlineButtons();
+      applyTableFilters();
+      addLog('✅ Đã gửi lệnh mở khóa và tải lại bảng học phần!', 'success');
+    }, 500);
   }
 
   // ==========================================
@@ -473,16 +505,21 @@
   // Tìm nút Đăng Ký trên trang IUH (Loại trừ nút trong HUD và menu điều hướng)
   function findRegisterButton() {
     const specific = document.querySelector(
-      '#btnDangKy, #btnDangKyHocPhan, #btnLuu, #btnSubmit, .btn-dangky, .btnDangKy, button[name*="DangKy"], input[name*="DangKy"], button[onclick*="DangKy"], button[onclick*="dangKy"], input[onclick*="DangKy"], a[onclick*="DangKy"]'
+      '#btnDangKy, #btnDangKyHocPhan, #btnDangKyMonHoc, #btnLuu, #btnSubmit, .btn-dangky, .btnDangKy, button[name*="DangKy"], input[name*="DangKy"], button[onclick*="DangKy"], button[onclick*="dangKy"], input[onclick*="DangKy"], a[onclick*="DangKy"]'
     );
-    if (specific && isVisible(specific) && !specific.disabled) return specific;
+    if (specific && isVisible(specific)) {
+      if (specific.disabled) {
+        specific.disabled = false;
+        specific.removeAttribute('disabled');
+      }
+      return specific;
+    }
 
     const candidates = document.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn, a[class*="btn"]');
 
     for (let i = 0; i < candidates.length; i++) {
       const el = candidates[i];
       if (el.closest('#iuh-dkhp-hud') || el.classList.contains('iuh-inline-add-btn')) continue;
-      if (el.disabled) continue;
 
       // Bỏ qua các thẻ <a> điều hướng chuyển trang thông thường
       if (el.tagName === 'A') {
@@ -494,6 +531,8 @@
       if (
         (val === 'đăng ký' ||
           val === 'đăng kí' ||
+          val.includes('đăng ký môn học') ||
+          val.includes('đăng kí môn học') ||
           val.includes('đăng ký học phần') ||
           val.includes('lưu đăng ký') ||
           val.includes('thực hiện đăng ký') ||
@@ -502,6 +541,10 @@
           val.includes('đăng ký ngay')) &&
         isVisible(el)
       ) {
+        if (el.disabled) {
+          el.disabled = false;
+          el.removeAttribute('disabled');
+        }
         return el;
       }
     }
@@ -682,8 +725,38 @@
     });
   }
 
-  // Chọn nhóm thực hành nếu môn có chia ca TH
+  // Chọn nhóm thực hành nếu môn có chia ca TH (Hỗ trợ cả <select> Nhóm thực hành, radio button và click dòng)
   function selectPracticeGroupIfAny(targetItem) {
+    // 1. Hỗ trợ ô dropdown <select> "Nhóm thực hành" trên trang dkhp.iuh.edu.vn/DangKyHocPhan
+    const allSelects = document.querySelectorAll('select');
+    for (let s = 0; s < allSelects.length; s++) {
+      const sel = allSelects[s];
+      if (sel.closest('#iuh-dkhp-hud')) continue;
+      const selId = ((sel.id || '') + ' ' + (sel.name || '')).toLowerCase();
+      const parentTxt = ((sel.parentElement && sel.parentElement.textContent) || '').toLowerCase();
+      const isPracticeSelect =
+        selId.includes('nhom') ||
+        selId.includes('thuchanh') ||
+        parentTxt.includes('nhóm thực hành');
+
+      if (isPracticeSelect && sel.options && sel.options.length > 0) {
+        for (let o = 0; o < sel.options.length; o++) {
+          const opt = sel.options[o];
+          const val = (opt.value || '').trim();
+          const txt = (opt.textContent || '').trim();
+          if (val && val !== '0' && val !== '-1' && !txt.toLowerCase().includes('chọn nhóm')) {
+            if (sel.value !== val) {
+              sel.value = val;
+              sel.dispatchEvent(new Event('change', { bubbles: true }));
+              addLog(`Tự động chọn Nhóm thực hành: ${txt}`, 'info');
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // 2. Hỗ trợ radio button chọn nhóm thực hành
     const practiceRadios = document.querySelectorAll(
       '#divNhomThucHanh input[type="radio"], .nhom-thuc-hanh input[type="radio"], table input[name*="ThucHanh"], table input[name*="ChiTiet"], #tbChiTietLopHocPhan input[type="radio"]'
     );
@@ -803,16 +876,19 @@
       let firstClassRow = null;
       let openClassRow = null;
 
+      const subjectPrefix = target.code.length >= 10 ? target.code.slice(0, 10) : target.code;
+
       // Duyệt qua các hàng khớp mã (hỗ trợ cả Mã LHP 12 số lẫn Mã HP 10 số)
       for (let i = 0; i < rows.length; i++) {
         const tr = rows[i];
-        if (tr.textContent.includes(target.code)) {
+        const rowText = tr.textContent || '';
+        if (rowText.includes(target.code) || (subjectPrefix && rowText.includes(subjectPrefix))) {
           const candidate = parseRowInfo(tr);
-          if (!candidate) continue;
+          if (!candidate || !candidate.code) continue;
 
-          if (candidate.code && candidate.code.length === 10) {
+          if (candidate.code.length === 10 && candidate.code === subjectPrefix) {
             subjectRow = candidate;
-          } else {
+          } else if (candidate.code.includes(target.code)) {
             if (!firstClassRow) firstClassRow = candidate;
             if (isRowOpenForReg(candidate)) {
               openClassRow = candidate;
@@ -963,10 +1039,10 @@
       const info = parseRowInfo(tr);
       if (!info || !info.code) continue;
 
-      // Ở bảng Lớp học phần (12 số), bỏ qua không gắn nút Săn cho các lớp "Đã khóa" hoặc "Đang lên kế hoạch"
+      // Ở bảng Lớp học phần (12 số), bỏ qua không gắn nút Săn cho các lớp "Đã khóa" hoặc "Đã hủy"
       if (info.code.length >= 11 && info.statusText) {
         const st = info.statusText.toLowerCase();
-        if (st.includes('đã khóa') || st.includes('đang lên kế hoạch') || st.includes('đã hủy')) {
+        if (st.includes('đã khóa') || st.includes('đã hủy')) {
           continue;
         }
       }
@@ -1868,10 +1944,14 @@
       }, 5000);
 
       setTimeout(() => {
-        ensureNoScheduleConflictChecked();
         injectInlineButtons();
         applyTableFilters();
-      }, 800);
+
+        // Nếu đang ở trang DangKyHocPhan mà bảng môn học bị trống/ẩn, tự động kích hoạt nạp lại bảng
+        if (window.location.pathname.toLowerCase().includes('dangkyhocphan') && findClassRows().length === 0) {
+          softRefreshTable();
+        }
+      }, 900);
 
       // MutationObserver với bộ lọc nguồn và debounce chống lặp vô hạn
       let mutationDebounceTimer = null;
@@ -1891,7 +1971,6 @@
         if (hasTableChanges) {
           clearTimeout(mutationDebounceTimer);
           mutationDebounceTimer = setTimeout(() => {
-            ensureNoScheduleConflictChecked();
             injectInlineButtons();
             applyTableFilters();
           }, 300);
