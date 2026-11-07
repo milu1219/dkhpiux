@@ -59,7 +59,12 @@
       zeroDelayMode: true,       // Bật Fast-Track Zero-Delay (20ms phản hồi)
       autoRetryOn50x: true,      // Tự động retry khi dính 502/503/504
       maxRetries: 5,             // Tối đa 5 lần retry
-      retryDelayMs: 300          // Delay giữa các lần retry
+      retryDelayMs: 300,         // Delay giữa các lần retry
+      // AUTO-LOGIN & AUTO-RESUME SETTINGS:
+      autoLoginEnabled: true,    // Tự động điền MSSV/Mật khẩu & đăng nhập lại khi văng phiên
+      autoRedirectDkhp: true,    // Tự chuyển về /DangKyHocPhan và săn tiếp sau khi đăng nhập
+      savedUsername: '',         // Mã số sinh viên
+      savedPassword: ''          // Mật khẩu cổng ĐKHP
     },
     logs: []
   };
@@ -1237,12 +1242,23 @@
     if (document.getElementById('iuh-dkhp-hud')) return;
 
     // HUD Container
+    let logoUrl = '';
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+        logoUrl = chrome.runtime.getURL('icons/icon48.png');
+      }
+    } catch (_) {}
+    const logoImgHtml = logoUrl
+      ? `<img src="${logoUrl}" alt="Logo" style="width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1.5px solid #ffffff; vertical-align: middle;" />`
+      : `<span>⚡</span>`;
+
     const hud = document.createElement('div');
     hud.id = 'iuh-dkhp-hud';
     hud.innerHTML = `
       <div class="iuh-hud-header" id="iuh-hud-drag-handle">
         <div class="iuh-hud-title">
-          <span>⚡ IUH DKHP PRO</span>
+          ${logoImgHtml}
+          <span>IUH DKHP PRO</span>
           <span class="iuh-badge">v1.2 ULTRA</span>
           <span class="iuh-ping-badge good" id="iuh-ping-indicator">Ping: --ms</span>
         </div>
@@ -1435,17 +1451,17 @@
           </button>
         </div>
 
-        <!-- TAB 4: GIỮ PHIÊN -->
+        <!-- TAB 4: GIỮ PHIÊN & AUTO LOGIN -->
         <div class="iuh-tab-pane" id="tab-session">
-          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px; margin-bottom: 10px; font-size: 12px; color: #1e40af;">
-            💡 <b>Tính năng Chống Văng Phiên (Keep-Alive):</b><br>
-            Tự động gửi tín hiệu nhẹ định kỳ đến máy chủ IUH để giữ cookie đăng nhập không bị hết hạn khi bạn treo máy chờ giờ mở cổng.
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 9px 10px; margin-bottom: 8px; font-size: 11.5px; color: #1e40af;">
+            💡 <b>Chống Văng Phiên & Tự Đăng Nhập Lại:</b><br>
+            Giữ phiên tự động bằng Keep-Alive. Nếu server quá tải làm văng ra trang Login, Extension sẽ <b>tự điền MSSV + Mật khẩu trong 0.05s</b> và đặt sẵn chuột vào ô Captcha (chỉ cần gõ 4 ký tự + Enter là tự quay lại săn tiếp).
           </div>
 
           <div class="iuh-setting-row">
             <label class="iuh-setting-label">
               <input type="checkbox" id="iuh-chk-anti-logout" checked />
-              <span>Kích hoạt tự động giữ phiên</span>
+              <span>Kích hoạt tự động giữ phiên (Keep-Alive)</span>
             </label>
           </div>
 
@@ -1458,9 +1474,34 @@
             </select>
           </div>
 
-          <button class="iuh-btn iuh-btn-primary iuh-btn-block" id="iuh-btn-manual-ping">
+          <button class="iuh-btn iuh-btn-secondary iuh-btn-block" id="iuh-btn-manual-ping" style="margin-bottom: 10px;">
             📡 Gửi ping giữ phiên ngay bây giờ
           </button>
+
+          <div style="border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 4px;">
+            <div style="font-weight: 700; font-size: 11.5px; color: #0f172a; margin-bottom: 6px;">
+              🔑 CẤU HÌNH TỰ ĐỘNG ĐĂNG NHẬP KHI BỊ VĂNG:
+            </div>
+            <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+              <input type="text" id="iuh-input-mssv" class="iuh-input" placeholder="Mã số SV (MSSV)" style="flex: 1; padding: 6px 8px; font-size: 12px;" />
+              <input type="password" id="iuh-input-pass" class="iuh-input" placeholder="Mật khẩu ĐKHP" style="flex: 1; padding: 6px 8px; font-size: 12px;" />
+            </div>
+            <button class="iuh-btn iuh-btn-primary iuh-btn-block" id="iuh-btn-save-cred" style="margin-bottom: 6px; padding: 6px;">
+              💾 Lưu Tài Khoản Tự Đăng Nhập
+            </button>
+            <div class="iuh-setting-row" style="padding: 3px 0;">
+              <label class="iuh-setting-label">
+                <input type="checkbox" id="iuh-chk-auto-login" checked />
+                <span>Tự điền MSSV/Mật khẩu & Focus sẵn ô Captcha</span>
+              </label>
+            </div>
+            <div class="iuh-setting-row" style="padding: 3px 0;">
+              <label class="iuh-setting-label">
+                <input type="checkbox" id="iuh-chk-auto-redirect" checked />
+                <span>Đăng nhập xong tự vào lại ĐKHP & Săn tiếp</span>
+              </label>
+            </div>
+          </div>
         </div>
 
         <!-- TAB 5: NHẬT KÝ -->
@@ -1480,7 +1521,7 @@
     const minBall = document.createElement('div');
     minBall.id = 'iuh-dkhp-hud-minimized';
     minBall.innerHTML = `
-      <span style="font-size: 14px;">⚡</span>
+      ${logoImgHtml}
       <span id="iuh-mini-label">IUH DKHP PRO</span>
       <span class="iuh-mini-dot" id="iuh-mini-status-dot"></span>
     `;
@@ -1746,7 +1787,7 @@
       addLog('Đã quét và cập nhật lại bảng học phần', 'info');
     });
 
-    // Tab Giữ phiên
+    // Tab Giữ phiên & Auto-Login
     const chkAntiLogout = document.getElementById('iuh-chk-anti-logout');
     chkAntiLogout.checked = state.settings.antiLogout;
     chkAntiLogout.addEventListener('change', (e) => {
@@ -1759,6 +1800,37 @@
         .then(() => addLog('📡 Đã gửi ping thủ công giữ phiên thành công!', 'success'))
         .catch((err) => addLog(`Lỗi ping: ${err.message}`, 'error'));
     });
+
+    const inputMssv = document.getElementById('iuh-input-mssv');
+    const inputPass = document.getElementById('iuh-input-pass');
+    const btnSaveCred = document.getElementById('iuh-btn-save-cred');
+    const chkAutoLogin = document.getElementById('iuh-chk-auto-login');
+    const chkAutoRedirect = document.getElementById('iuh-chk-auto-redirect');
+
+    if (inputMssv) inputMssv.value = state.settings.savedUsername || '';
+    if (inputPass) inputPass.value = state.settings.savedPassword || '';
+    if (chkAutoLogin) {
+      chkAutoLogin.checked = state.settings.autoLoginEnabled !== false;
+      chkAutoLogin.addEventListener('change', (e) => {
+        state.settings.autoLoginEnabled = e.target.checked;
+        saveConfig();
+      });
+    }
+    if (chkAutoRedirect) {
+      chkAutoRedirect.checked = state.settings.autoRedirectDkhp !== false;
+      chkAutoRedirect.addEventListener('change', (e) => {
+        state.settings.autoRedirectDkhp = e.target.checked;
+        saveConfig();
+      });
+    }
+    if (btnSaveCred) {
+      btnSaveCred.addEventListener('click', () => {
+        state.settings.savedUsername = (inputMssv ? inputMssv.value : '').trim();
+        state.settings.savedPassword = inputPass ? inputPass.value : '';
+        saveConfig();
+        addLog(`💾 Đã lưu tài khoản [${state.settings.savedUsername || 'Trống'}] để tự động đăng nhập khi bị văng!`, 'success');
+      });
+    }
 
     document.getElementById('iuh-btn-clear-logs').addEventListener('click', () => {
       state.logs = [];
@@ -1999,6 +2071,174 @@
   }
 
   // ==========================================
+  // TỰ ĐỘNG ĐĂNG NHẬP LẠI KHI VĂNG PHIÊN & TIẾP TỤC SĂN
+  // ==========================================
+  function setupAutoLoginAndResume() {
+    // Tìm ô mật khẩu trên trang (ngoài HUD của extension)
+    const passInputs = Array.from(document.querySelectorAll('input[type="password"]')).filter(
+      (el) => !el.closest('#iuh-dkhp-hud') && el.offsetParent !== null
+    );
+
+    const hasPendingTargets = state.targets && state.targets.some((t) => t.status === 'pending');
+
+    // TRƯỜNG HỢP 1: ĐANG Ở TRANG ĐĂNG NHẬP (BỊ VĂNG PHIÊN HOẶC MỚI MỞ WEB)
+    if (passInputs.length > 0) {
+      const passInput = passInputs[0];
+      const formContainer = passInput.closest('form') || document.body;
+
+      // Tìm ô MSSV / Tài khoản
+      const userInput = Array.from(
+        formContainer.querySelectorAll(
+          'input[name*="UserName" i], input[id*="UserName" i], input[name*="MaSinhVien" i], input[id*="MaSinhVien" i], input[name*="TaiKhoan" i], input[id*="TaiKhoan" i], input[type="text"]'
+        )
+      ).find((el) => !el.closest('#iuh-dkhp-hud') && el !== passInput && el.offsetParent !== null);
+
+      // Tìm ô Captcha (nếu trang có yêu cầu nhập mã bảo vệ)
+      const captchaInput = Array.from(
+        formContainer.querySelectorAll(
+          'input[name*="Captcha" i], input[id*="Captcha" i], input[name*="MaBaoVe" i], input[id*="MaBaoVe" i], input[placeholder*="bảo vệ" i], input[placeholder*="captcha" i], input[placeholder*="xác nhận" i]'
+        )
+      ).find((el) => !el.closest('#iuh-dkhp-hud') && el !== userInput && el !== passInput && el.offsetParent !== null);
+
+      // Tìm nút Đăng nhập
+      const loginBtn = Array.from(
+        formContainer.querySelectorAll(
+          'button[type="submit"], input[type="submit"], #btnDangNhap, .btn-login, button[onclick*="Login" i], a[onclick*="Login" i]'
+        )
+      ).find((el) => !el.closest('#iuh-dkhp-hud') && el.offsetParent !== null);
+
+      // Tự động lưu lại MSSV & Mật khẩu khi người dùng bấm Đăng nhập thủ công
+      const saveTypedCredentials = () => {
+        if (userInput && passInput && userInput.value.trim() && passInput.value) {
+          state.settings.savedUsername = userInput.value.trim();
+          state.settings.savedPassword = passInput.value;
+          saveConfig();
+        }
+        if (hasPendingTargets && state.settings.autoRedirectDkhp !== false) {
+          try {
+            sessionStorage.setItem('__iuh_auto_resume_hunt__', '1');
+          } catch (_) {}
+        }
+      };
+
+      if (loginBtn) {
+        loginBtn.addEventListener('click', saveTypedCredentials);
+      }
+      if (formContainer.tagName === 'FORM') {
+        formContainer.addEventListener('submit', saveTypedCredentials);
+      }
+
+      // Nếu đã bật Auto-Login và có sẵn tài khoản đã lưu
+      if (state.settings.autoLoginEnabled !== false && state.settings.savedUsername && state.settings.savedPassword) {
+        const setNativeValue = (inputEl, val) => {
+          if (!inputEl) return;
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+          if (setter) {
+            setter.call(inputEl, val);
+          } else {
+            inputEl.value = val;
+          }
+          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+
+        setNativeValue(userInput, state.settings.savedUsername);
+        setNativeValue(passInput, state.settings.savedPassword);
+
+        if (hasPendingTargets && state.settings.autoRedirectDkhp !== false) {
+          try {
+            sessionStorage.setItem('__iuh_auto_resume_hunt__', '1');
+          } catch (_) {}
+        }
+
+        if (captchaInput) {
+          // CÓ CAPTCHA: Phát còi báo hiệu, tô sáng và đặt sẵn con trỏ vào ô Captcha
+          playSoundAlert('warn');
+          captchaInput.style.outline = '3px solid #f59e0b';
+          captchaInput.style.backgroundColor = '#fffbeb';
+          captchaInput.style.fontWeight = '700';
+
+          setTimeout(() => {
+            captchaInput.focus();
+            captchaInput.select();
+          }, 50);
+
+          captchaInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && loginBtn) {
+              saveTypedCredentials();
+              loginBtn.click();
+            }
+          });
+
+          addLog(
+            '🔑 [Auto-Login] Đã tự điền MSSV & Mật khẩu! Con trỏ đã đặt sẵn ở ô Captcha -> Bạn chỉ cần gõ 4 ký tự Captcha rồi bấm Enter!',
+            'warn'
+          );
+        } else if (loginBtn) {
+          // KHÔNG CÓ CAPTCHA: Tự động bấm Đăng nhập ngay (chống lặp nếu sai mật khẩu trong 8 giây)
+          let lastAttempt = 0;
+          try {
+            lastAttempt = parseInt(sessionStorage.getItem('__iuh_login_attempt_ts__') || '0', 10);
+          } catch (_) {}
+
+          if (Date.now() - lastAttempt > 8000) {
+            try {
+              sessionStorage.setItem('__iuh_login_attempt_ts__', String(Date.now()));
+            } catch (_) {}
+            addLog('🔑 [Auto-Login] Đã tự điền MSSV & Mật khẩu -> Tự động bấm Đăng Nhập!', 'success');
+            setTimeout(() => {
+              loginBtn.click();
+            }, 150);
+          } else {
+            addLog('⚠️ [Auto-Login] Đã điền sẵn MSSV & Mật khẩu. Vui lòng kiểm tra lại thông tin đăng nhập.', 'warn');
+          }
+        }
+      }
+      return;
+    }
+
+    // TRƯỜNG HỢP 2: ĐÃ ĐĂNG NHẬP THÀNH CÔNG -> KIỂM TRA CHUYỂN HƯỚNG & SĂN TIẾP
+    const pathLower = window.location.pathname.toLowerCase();
+    const isDkhpPage = pathLower.includes('dangkyhocphan');
+    const isCtkPage = pathLower.includes('chuong-trinh-khung');
+    let shouldResume = false;
+    try {
+      shouldResume = sessionStorage.getItem('__iuh_auto_resume_hunt__') === '1';
+    } catch (_) {}
+
+    // Nếu vừa đăng nhập xong và bị đẩy về trang chủ dkhp.iuh.edu.vn (/ hoặc /Home hoặc /SinhVien)
+    if (
+      state.settings.autoRedirectDkhp !== false &&
+      !isDkhpPage &&
+      !isCtkPage &&
+      window.location.hostname.toLowerCase().includes('dkhp.iuh.edu.vn') &&
+      (shouldResume || hasPendingTargets)
+    ) {
+      try {
+        sessionStorage.setItem('__iuh_auto_resume_hunt__', '1');
+      } catch (_) {}
+      addLog('🔄 [Auto-Resume] Đăng nhập thành công! Đang tự động chuyển thẳng vào trang Đăng Ký Học Phần...', 'success');
+      setTimeout(() => {
+        window.location.href = 'https://dkhp.iuh.edu.vn/DangKyHocPhan';
+      }, 300);
+      return;
+    }
+
+    // Nếu đã vào lại trang DangKyHocPhan sau khi đăng nhập lại -> Tự động BẮT ĐẦU SĂN tiếp
+    if (isDkhpPage && shouldResume && hasPendingTargets) {
+      try {
+        sessionStorage.removeItem('__iuh_auto_resume_hunt__');
+      } catch (_) {}
+      setTimeout(() => {
+        if (!state.isRunning && state.targets.some((t) => t.status === 'pending')) {
+          addLog('🚀 [Auto-Resume] Đã quay lại trang ĐKHP sau khi đăng nhập -> Tự động BẮT ĐẦU SĂN tiếp!', 'success');
+          startHunting();
+        }
+      }, 1200);
+    }
+  }
+
+  // ==========================================
   // KHỞI ĐỘNG EXTENSION TRÊN TRANG (TỐI ƯU MUTATION)
   // ==========================================
   function init() {
@@ -2006,6 +2246,7 @@
       createHUD();
       setupKeepAlive();
       setupManualSelectAutoRegister();
+      setupAutoLoginAndResume();
       addLog('Đã khởi tạo IUH DKHP Pro Ultra Turbo sẵn sàng!', 'success');
 
       // Khởi chạy đo ping định kỳ mỗi 5s
